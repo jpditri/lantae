@@ -29,6 +29,7 @@ Lantae provides a unified interface to interact with various Large Language Mode
 - File operations: `cat`, `write_file`, `edit_file`, `create_file`, `delete_file`, `mkdir`
 - System commands: `bash`, `pwd`, `ls`, `find`
 - Development tools: `git`, `npm`/`bundle`, code execution (`python`, `ruby`, `node`)
+- **MCP Integration**: Model Context Protocol support for extensible tool access
 
 ## 🚀 Quick Start
 
@@ -112,6 +113,8 @@ chmod +x index.js
 | Planning Mode | `--planning-mode` | `--planning-mode` | Enable detailed task planning |
 | No Banner | `--no-banner` | `--no-banner` | Disable startup banner |
 | Temperature | `-t`, `--temperature` | `-t`, `--temperature` | Response randomness (0.0-1.0) |
+| Enable MCP | `--enable-mcp` | N/A | Enable Model Context Protocol support |
+| MCP Config | `--mcp-config PATH` | N/A | Path to MCP server configuration file |
 
 ### Interactive Commands
 
@@ -125,6 +128,7 @@ Once in the REPL, use these slash commands:
 | `/models` | List available models |
 | `/tool <name> <args>` | Execute a local tool |
 | `/tools` | List available tools |
+| `/mcp <subcommand>` | MCP server management (status, health, tools, reload) |
 | `/clear` | Clear conversation history |
 | `/info` | Show current provider/model |
 | `/env` | Check environment variables |
@@ -168,6 +172,70 @@ ollama pull cogito:latest
 # Start Ollama service
 ollama serve
 ```
+
+### MCP (Model Context Protocol) Setup
+
+Lantae includes Model Context Protocol support for extensible tool access.
+
+#### Configuration
+Create a `mcp_servers.yml` file to configure MCP servers:
+```yaml
+mcp_servers:
+  # File system operations
+  - name: filesystem
+    transport: stdio
+    command: npx
+    args:
+      - "@modelcontextprotocol/server-filesystem"
+      - "/your/safe/directory"
+    description: "File system operations via MCP"
+    
+  # Web search capabilities
+  - name: web_search
+    transport: http
+    url: http://localhost:3001/mcp
+    timeout: 30
+    auth:
+      type: bearer
+      token: your_api_token_here
+    description: "Web search capabilities via MCP"
+```
+
+#### Usage
+Enable MCP support with the `--enable-mcp` flag:
+```bash
+# Start with MCP support
+./lantae.rb --enable-mcp
+
+# Use custom config file
+./lantae.rb --enable-mcp --mcp-config /path/to/mcp_servers.yml
+```
+
+#### MCP Commands
+Use `/mcp <subcommand>` to manage MCP servers:
+- `/mcp status` - View server connection status
+- `/mcp health` - Check server health
+- `/mcp tools` - List available tools from all servers
+- `/mcp reload` - Reload server configuration
+
+#### Tool Usage
+MCP tools are available using the format `server__tool`:
+```bash
+# List available tools (includes MCP tools)
+/tools
+
+# Use an MCP tool
+/tool filesystem__read_file path="/path/to/file.txt"
+
+# Or directly in conversation
+> Use the filesystem server to read the README file
+```
+
+#### Security Features
+- **Path traversal protection**: Blocks attempts to access parent directories
+- **Command validation**: Basic detection of potentially harmful commands
+- **Argument sanitization**: Validates tool arguments before execution
+- **Connection management**: Secure server discovery and connection handling
 
 ## 🧠 Reasoning Models Comparison
 

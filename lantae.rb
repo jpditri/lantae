@@ -8,6 +8,7 @@ require 'readline'
 require 'tempfile'
 require 'aws-sdk-secretsmanager'
 require 'aws-sdk-bedrockruntime'
+require_relative 'mcp_manager'
 
 VERSION = '1.0.0'
 
@@ -520,7 +521,16 @@ class BedrockProvider
 end
 
 class ToolManager
+  def initialize(mcp_manager = nil)
+    @mcp_manager = mcp_manager
+  end
+  
   def execute_tool(tool_name, args)
+    # Check if this is an MCP tool (format: server__tool)
+    if tool_name.include?('__') && @mcp_manager
+      return execute_mcp_tool(tool_name, args)
+    end
+    
     case tool_name
     when 'bash'
       execute_bash(args)
@@ -583,10 +593,77 @@ class ToolManager
   end
 
   def list_available_tools
-    %w[bash ruby python ls cat pwd git bundle write_file edit_file create_file delete_file mkdir find]
+    builtin_tools = %w[bash ruby python ls cat pwd git bundle write_file edit_file create_file delete_file mkdir find]
+    
+    if @mcp_manager
+      mcp_tools = @mcp_manager.get_available_tools.keys
+      builtin_tools + mcp_tools
+    else
+      builtin_tools
+    end
   end
 
   private
+
+  def execute_mcp_tool(tool_name, args)
+    puts "Executing MCP tool: #{tool_name}"
+    
+    begin
+      # Parse arguments for MCP tool call
+      arguments = parse_mcp_arguments(args)
+      
+      result = @mcp_manager.call_mcp_tool(tool_name, arguments)
+      
+      if result[:success]
+        format_mcp_result(result[:result])
+      else
+        "MCP Tool Error: #{result[:error][:message] || 'Unknown error'}"
+      end
+      
+    rescue => e
+      puts "MCP tool execution failed: #{e.message}"
+      "Error executing MCP tool #{tool_name}: #{e.message}"
+    end
+  end
+  
+  def parse_mcp_arguments(args_string)
+    # Simple argument parsing - could be enhanced for complex structures
+    return {} if args_string.nil? || args_string.strip.empty?
+    
+    # Try to parse as JSON first
+    begin
+      JSON.parse(args_string)
+    rescue JSON::ParserError
+      # Fallback to simple key=value parsing
+      args = {}
+      args_string.split(' ').each do |pair|
+        if pair.include?('=')
+          key, value = pair.split('=', 2)
+          args[key] = value
+        end
+      end
+      args
+    end
+  end
+  
+  def format_mcp_result(result)
+    if result.is_a?(Hash) && result[:content]
+      # Handle MCP content format
+      content_parts = result[:content].map do |item|
+        case item[:type]
+        when 'text'
+          item[:text]
+        when 'image'
+          "[Image: #{item[:data] ? 'embedded' : item[:url]}]"
+        else
+          item.to_s
+        end
+      end
+      content_parts.join("\n")
+    else
+      result.to_s
+    end
+  end
 
   def execute_bash(command)
     result = `#{command} 2>&1`
@@ -695,7 +772,20 @@ end
 
 def send_single_prompt(prompt, options)
   secret_manager = SecretManager.new(options[:region], options[:secret])
-  tool_manager = ToolManager.new
+  
+  # Initialize MCP if enabled
+  mcp_manager = nil
+  if options[:enable_mcp]
+    mcp_manager = MCPManager.new
+    if mcp_manager.load_server_configs(options[:mcp_config])
+      mcp_manager.discover_servers
+      mcp_manager.connect_all_servers
+    else
+      mcp_manager = nil
+    end
+  end
+  
+  tool_manager = ToolManager.new(mcp_manager)
   provider_manager = ProviderManager.new(secret_manager, tool_manager)
   
   if options[:provider] != 'ollama'
@@ -732,7 +822,20 @@ end
 
 def start_repl(options)
   secret_manager = SecretManager.new(options[:region], options[:secret])
-  tool_manager = ToolManager.new
+  
+  # Initialize MCP if enabled
+  mcp_manager = nil
+  if options[:enable_mcp]
+    mcp_manager = MCPManager.new
+    if mcp_manager.load_server_configs(options[:mcp_config])
+      mcp_manager.discover_servers
+      mcp_manager.connect_all_servers
+    else
+      mcp_manager = nil
+    end
+  end
+  
+  tool_manager = ToolManager.new(mcp_manager)
   provider_manager = ProviderManager.new(secret_manager, tool_manager)
   conversation = []
   
@@ -779,7 +882,7 @@ def start_repl(options)
       next if input.empty?
       
       if input.start_with?('/')
-        handle_slash_command(input, provider_manager, tool_manager, conversation)
+        handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager)
         next
       end
       
@@ -813,7 +916,7 @@ def start_repl(options)
   end
 end
 
-def handle_slash_command(input, provider_manager, tool_manager, conversation)
+def handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager = nil)
   parts = input[1..-1].split(' ')
   command = parts[0]
   args = parts[1..-1].join(' ')
@@ -827,6 +930,7 @@ def handle_slash_command(input, provider_manager, tool_manager, conversation)
         /models             - List available models for current provider
         /tool <name> <args> - Execute a local tool
         /tools              - List available tools
+        /mcp <subcommand>   - MCP server management (status, health, tools, reload)
         /clear              - Clear conversation history
         /info               - Show current provider and model info
         /env                - Show environment variables status
@@ -879,6 +983,9 @@ def handle_slash_command(input, provider_manager, tool_manager, conversation)
     puts "Provider: #{info[:provider]}"
     puts "Model: #{info[:model]}"
 
+  when 'mcp'
+    handle_mcp_command(args, mcp_manager)
+
   when 'env'
     puts 'Environment Variables Status:'
     %w[openai anthropic gemini mistral perplexity].each do |provider|
@@ -895,6 +1002,99 @@ rescue => e
   puts "Error: #{e.message}"
 end
 
+def handle_mcp_command(args, mcp_manager)
+  unless mcp_manager
+    puts "MCP not enabled. Use --enable-mcp flag to enable MCP support."
+    return
+  end
+  
+  parts = args.split(' ', 2)
+  subcommand = parts[0]
+  
+  case subcommand
+  when 'status'
+    status = mcp_manager.get_server_status
+    
+    puts "MCP Server Status:"
+    puts "  Discovered: #{status[:discovered]}"
+    puts "  Connected: #{status[:connected]}"
+    puts
+    
+    status[:servers].each do |server_name, server_status|
+      puts "  #{server_name}:"
+      puts "    Status: #{server_status[:status]}"
+      puts "    Transport: #{server_status[:transport]}"
+      puts "    Tools: #{server_status[:tools_count]}"
+      puts "    Resources: #{server_status[:resources_count]}"
+      
+      if server_status[:last_error]
+        puts "    Last Error: #{server_status[:last_error]}"
+      end
+      
+      puts
+    end
+    
+  when 'health'
+    health = mcp_manager.health_check
+    
+    puts "MCP Health Check Results:"
+    puts "  Total Servers: #{health[:total_servers]}"
+    puts "  Healthy: #{health[:healthy_servers]}"
+    puts "  Unhealthy: #{health[:unhealthy_servers]}"
+    puts "  Health Rate: #{health[:health_rate]}%"
+    
+    unless health[:issues].empty?
+      puts "\n  Issues:"
+      health[:issues].each do |issue|
+        puts "    #{issue[:server]}: #{issue[:error]}"
+      end
+    end
+    
+  when 'reload'
+    puts "Reloading MCP configuration..."
+    if mcp_manager.reload_configuration
+      puts "MCP configuration reloaded successfully."
+      
+      status = mcp_manager.get_server_status
+      puts "Connected to #{status[:connected]} servers."
+    else
+      puts "Failed to reload MCP configuration."
+    end
+    
+  when 'tools'
+    tools = mcp_manager.get_available_tools
+    
+    if tools.empty?
+      puts "No MCP tools available."
+    else
+      puts "Available MCP Tools:"
+      tools.each do |qualified_name, tool_info|
+        puts "  #{qualified_name}"
+        puts "    Server: #{tool_info[:server]}"
+        
+        if tool_info[:info][:description]
+          puts "    Description: #{tool_info[:info][:description]}"
+        end
+        
+        if tool_info[:info][:inputSchema]
+          puts "    Parameters: #{tool_info[:info][:inputSchema][:properties]&.keys&.join(', ') || 'None'}"
+        end
+        
+        puts
+      end
+    end
+    
+  when '', nil
+    puts "MCP subcommands: status, health, reload, tools"
+    
+  else
+    puts "Unknown MCP subcommand: #{subcommand}. Available: status, health, reload, tools"
+  end
+  
+rescue => e
+  puts "MCP command error: #{e.message}"
+end
+
 def main
   options = {
     model: 'cogito:latest',
@@ -905,7 +1105,9 @@ def main
     temperature: 0.1,
     auto_accept: false,
     planning_mode: false,
-    no_banner: false
+    no_banner: false,
+    enable_mcp: false,
+    mcp_config: nil
   }
 
   OptionParser.new do |opts|
@@ -920,6 +1122,8 @@ def main
     opts.on('-y', '--auto-accept', 'Auto-accept all prompts and confirmations') { options[:auto_accept] = true }
     opts.on('--planning-mode', 'Enable planning mode for complex tasks') { options[:planning_mode] = true }
     opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
+    opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
+    opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }
     opts.on('-v', '--version', 'Show version') { puts VERSION; exit }
     opts.on('-h', '--help', 'Show this help') { puts opts; exit }
   end.parse!
