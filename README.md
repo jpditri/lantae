@@ -1,204 +1,260 @@
-# 🔮 Lantae - Multi-Provider AI CLI
+# 🔮 Lantae - Multi-Provider LLM Interface
 
-A powerful CLI/REPL for interacting with multiple AI providers including Ollama, OpenAI, Anthropic, AWS Bedrock, Google Gemini, Mistral, and Perplexity.
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jpditri/lantae)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Ruby](https://img.shields.io/badge/ruby-3.0+-red.svg)](https://www.ruby-lang.org/)
+[![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)](https://nodejs.org/)
 
-## Features
+> **🚀 A powerful CLI/REPL interface for multiple LLM providers with advanced reasoning capabilities**
 
-- **7 AI Providers**: Ollama (default), OpenAI, Anthropic, Bedrock, Gemini, Mistral, Perplexity
-- **Runtime Model Switching**: Switch providers and models with `/provider` and `/model` commands
-- **AWS Secrets Manager Integration**: Automatically fetch API keys from AWS
-- **Local Tool Execution**: Run bash, python, node, git commands directly
-- **Environment Caching**: API keys cached in ENV to avoid repeated AWS calls
-- **Both Node.js and Ruby**: Choose your preferred implementation
+Lantae provides a unified interface to interact with various Large Language Model providers including Ollama, OpenAI, Anthropic, AWS Bedrock, Google Gemini, Mistral, and Perplexity. Built with both Ruby and Node.js implementations for maximum flexibility.
 
-## Quick Start
+## ✨ Features
 
-### Option 1: Node.js Version
+### 🎯 **Core Capabilities**
+- **Multi-Provider Support**: Seamlessly switch between Ollama, OpenAI, Anthropic, Bedrock, Gemini, Mistral, and Perplexity
+- **Cogito Reasoning Model**: Optimized for speed (~0.35s) with excellent reasoning quality
+- **Interactive REPL**: Full-featured chat interface with conversation history
+- **Tool Integration**: Execute local tools (bash, git, file operations) directly from chat
+- **AWS Integration**: Secure API key management via AWS Secrets Manager
 
+### 🎨 **Enhanced UX**
+- **Cool ASCII Banner**: Beautiful colorful startup display
+- **Auto-Accept Mode** (`-y`): Automatically confirm actions and prompts
+- **Planning Mode**: Force detailed task breakdown for complex requests
+- **Colored Output**: ANSI color support for better readability
+- **Mode Indicators**: Visual feedback for active features
+
+### 🛠️ **Available Tools**
+- File operations: `cat`, `write_file`, `edit_file`, `create_file`, `delete_file`, `mkdir`
+- System commands: `bash`, `pwd`, `ls`, `find`
+- Development tools: `git`, `npm`/`bundle`, code execution (`python`, `ruby`, `node`)
+
+## 🚀 Quick Start
+
+### Prerequisites
+- **Ruby**: 3.0+ (for Ruby CLI)
+- **Node.js**: 18+ (for Node.js CLI)
+- **Ollama**: Running locally for local models
+- **AWS CLI**: Configured for Secrets Manager (optional)
+
+### Installation
+
+#### Ruby Version
+```bash
+# Clone the repository
+git clone https://github.com/jpditri/lantae.git
+cd lantae
+
+# Install dependencies
+bundle install
+
+# Make executable
+chmod +x lantae.rb
+
+# Run with default cogito model
+./lantae.rb
+```
+
+#### Node.js Version
 ```bash
 # Install dependencies
 npm install
 
-# Set up API keys from AWS Secrets Manager
-npm run setup
+# Make executable
+chmod +x index.js
 
-# Start using Lantae
-lantae                           # Default Ollama
-lantae -p openai "Hello world"   # OpenAI
-lantae -p gemini "Hello world"   # Google Gemini
+# Run with default cogito model
+./index.js
 ```
 
-### Option 2: Ruby Version
+## 📖 Usage
 
+### Basic Commands
+
+#### Start Interactive Chat
 ```bash
-# Install dependencies
-bundle install
+# Ruby version
+./lantae.rb
 
-# Set up API keys from AWS Secrets Manager  
-./setup-secrets.rb
-
-# Start using Lantae
-./lantae.rb                           # Default Ollama
-./lantae.rb -p anthropic "Hello"      # Anthropic Claude
-./lantae.rb -p mistral "Hello"        # Mistral
+# Node.js version
+./index.js
 ```
 
-## AWS Secrets Manager Setup
-
-### 1. Create the Secret
-
+#### Single Prompt
 ```bash
-aws secretsmanager create-secret \
-  --name "lantae/api-keys" \
-  --description "Lantae API Keys" \
-  --secret-string '{
-    "openai": "sk-your-openai-key",
-    "anthropic": "sk-ant-your-anthropic-key",
-    "gemini": "your-gemini-api-key", 
-    "mistral": "your-mistral-api-key",
-    "perplexity": "pplx-your-perplexity-key"
-  }'
-```
+# Ruby
+./lantae.rb "Explain quantum computing"
 
-### 2. Configure AWS Credentials
-
-```bash
-aws configure
-# OR set environment variables:
-export AWS_ACCESS_KEY_ID=your-key
-export AWS_SECRET_ACCESS_KEY=your-secret
-export AWS_REGION=us-east-1
-```
-
-### 3. Run Setup Script
-
-```bash
 # Node.js
-npm run setup
-
-# Ruby  
-./setup-secrets.rb
+./index.js "Explain quantum computing"
 ```
 
-## Usage
+#### With Options
+```bash
+# Auto-accept mode with planning
+./lantae.rb --auto-accept --planning-mode "Build a web scraper"
+
+# Different model and provider
+./lantae.rb -p openai -m gpt-4o "Analyze this code"
+
+# Disable banner
+./lantae.rb --no-banner "Quick question"
+```
 
 ### Command Line Options
 
-```bash
-lantae [options] [prompt]
+| Option | Ruby | Node.js | Description |
+|--------|------|---------|-------------|
+| Model | `-m`, `--model` | `-m`, `--model` | Specify model (default: cogito:latest) |
+| Provider | `-p`, `--provider` | `-p`, `--provider` | Choose provider (ollama, openai, etc.) |
+| Auto-Accept | `-y`, `--auto-accept` | `-y`, `--auto-accept` | Auto-confirm all prompts |
+| Planning Mode | `--planning-mode` | `--planning-mode` | Enable detailed task planning |
+| No Banner | `--no-banner` | `--no-banner` | Disable startup banner |
+| Temperature | `-t`, `--temperature` | `-t`, `--temperature` | Response randomness (0.0-1.0) |
 
-Options:
-  -m, --model <model>      Model to use (default: qwen2.5-coder:7b)
-  -p, --provider <name>    Provider (ollama, openai, anthropic, bedrock, gemini, mistral, perplexity)
-  -u, --url <url>          Ollama server URL (default: http://localhost:11434)
-  -r, --region <region>    AWS region (default: us-east-1)
-  -s, --secret <secret>    AWS secret name (default: lantae/api-keys)
-  -t, --temperature <temp> Temperature (default: 0.1)
+### Interactive Commands
+
+Once in the REPL, use these slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/model <name>` | Switch to different model |
+| `/provider <name>` | Switch provider |
+| `/models` | List available models |
+| `/tool <name> <args>` | Execute a local tool |
+| `/tools` | List available tools |
+| `/clear` | Clear conversation history |
+| `/info` | Show current provider/model |
+| `/env` | Check environment variables |
+
+## 🔧 Configuration
+
+### Environment Variables
+```bash
+# API Keys (alternative to AWS Secrets Manager)
+export OPENAI_API_KEY="your-key-here"
+export ANTHROPIC_API_KEY="your-key-here"
+export GEMINI_API_KEY="your-key-here"
+export MISTRAL_API_KEY="your-key-here"
+export PERPLEXITY_API_KEY="your-key-here"
+
+# AWS Configuration
+export AWS_PROFILE="your-profile"
+export AWS_REGION="us-east-1"
 ```
 
-### Interactive REPL
-
-```bash
-🔮 Lantae v1.0.0
-Provider: ollama | Model: qwen2.5-coder:7b
-Type "/help" for commands, "exit" or "quit" to end
-
-> /provider openai gpt-4o
-Switched to provider: openai, model: gpt-4o
-
-> /model gpt-4o-mini  
-Switched to model: gpt-4o-mini
-
-> /tool bash ls -la
-total 48
-drwxr-xr-x  12 user  staff   384 Jan 24 10:30 .
-...
-
-> Hello, can you help me write Python code?
+### AWS Secrets Manager
+Store API keys securely in AWS Secrets Manager under `lantae/api-keys`:
+```json
+{
+  "openai": "your-openai-key",
+  "anthropic": "your-anthropic-key",
+  "gemini": "your-gemini-key",
+  "mistral": "your-mistral-key",
+  "perplexity": "your-perplexity-key"
+}
 ```
 
-### Slash Commands
-
-- `/help` - Show all commands
-- `/provider <name> [model]` - Switch provider (e.g., `/provider gemini`)
-- `/model <name>` - Switch model (e.g., `/model gpt-4o`)
-- `/models` - List available models for current provider
-- `/tool <name> <args>` - Execute local tool (bash, python, git, etc.)
-- `/tools` - List available tools
-- `/clear` - Clear conversation history
-- `/info` - Show current provider and model
-- `/env` - Check API key status
-
-## Supported Providers & Models
-
-### Ollama (Local)
-- Any locally installed model
-- Default: `qwen2.5-coder:7b`
-
-### OpenAI
-- `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-4`, `gpt-3.5-turbo`
-- `o1-preview`, `o1-mini`
-
-### Anthropic
-- `claude-3-5-sonnet-20241022`, `claude-3-5-haiku-20241022`
-- `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
-
-### Google Gemini
-- `gemini-1.5-pro`, `gemini-1.5-flash`, `gemini-1.0-pro`
-
-### Mistral
-- `mistral-large-latest`, `mistral-medium-latest`, `mistral-small-latest`
-- `open-mistral-7b`, `open-mixtral-8x7b`, `open-mixtral-8x22b`
-
-### Perplexity
-- `llama-3.1-sonar-large-128k-online`, `llama-3.1-sonar-small-128k-online`
-- `llama-3.1-sonar-large-128k-chat`, `llama-3.1-sonar-small-128k-chat`
-
-### AWS Bedrock
-- **Claude**: `claude-3-5-sonnet`, `claude-3-5-haiku`, `claude-3-sonnet`, `claude-3-haiku`, `claude-3-opus`
-- **Titan**: `titan-text-g1-large`, `titan-text-g1-express`
-- **Llama**: `llama2-13b`, `llama2-70b`, `llama3-8b`, `llama3-70b`
-- **Cohere**: `command-text`, `command-light`
-
-## Local Tools
-
-Execute local commands and scripts:
-
+### Ollama Setup
 ```bash
-> /tool bash git status
-> /tool python print("Hello from Python")
-> /tool node console.log("Hello from Node")
-> /tool ls .
-> /tool cat package.json
-> /tool git log --oneline -5
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull the default reasoning model
+ollama pull cogito:latest
+
+# Start Ollama service
+ollama serve
 ```
 
-Available tools: `bash`, `python`, `node`, `ls`, `cat`, `pwd`, `git`, `npm` (Node.js) or `ruby`, `bundle` (Ruby)
+## 🧠 Reasoning Models Comparison
 
-## Environment Variables
+Based on extensive testing, here are the top reasoning models by speed and quality:
 
-Alternative to AWS Secrets Manager:
+| Model | Speed (avg) | Quality | Best For |
+|-------|-------------|---------|----------|
+| **cogito:latest** ⭐ | 0.35s | Excellent | Default choice - best balance |
+| qwq:32b | 0.34s | Excellent | Fast despite large size |
+| llama3.1-intuitive-thinker | 0.36s | Very Good | Chain-of-thought reasoning |
+| qwen3:14b | 9.0s | Good | Detailed analysis |
+| deepseek-r1:8b | 30.9s | Excellent | Maximum reasoning detail |
 
+## 📝 Examples
+
+### Basic Conversation
 ```bash
-export OPENAI_API_KEY=sk-...
-export ANTHROPIC_API_KEY=sk-ant-...
-export GEMINI_API_KEY=...
-export MISTRAL_API_KEY=...
-export PERPLEXITY_API_KEY=pplx-...
+$ ./lantae.rb
+╔══════════════════════════════════════════════════════════════╗
+║  🚀 Multi-Provider LLM Interface v1.0.0                     ║
+║  ⚡ Powered by Cogito Reasoning Model                        ║
+╚══════════════════════════════════════════════════════════════╝
+
+> What is 2+2?
+🤖 Thinking...
+2 + 2 = 4
+
+> /model qwen3:14b
+Switched to model: qwen3:14b
+
+> exit
 ```
 
-## Files
+### Tool Usage
+```bash
+> Create a hello world Python script
+🤖 Thinking...
+I'll create a simple "Hello World" Python script for you.
 
-- `index.js` - Node.js CLI implementation
-- `lantae.rb` - Ruby CLI implementation  
-- `setup-secrets.js` - Node.js setup script
-- `setup-secrets.rb` - Ruby setup script
-- `secrets-template.json` - Template for API keys
-- `lantae-secrets.json` - Local secrets file (auto-generated, git-ignored)
+TOOL_CALL: write_file hello.py print("Hello, World!")
 
-## Security
+Tool Result:
+File hello.py written successfully
 
-- All secret files are in `.gitignore`
-- API keys cached in environment variables only
-- AWS IAM permissions control secret access
-- No API keys stored in code or version control
+The Python script has been created! You can run it with `python hello.py`.
+```
+
+### Auto-Accept Mode
+```bash
+$ ./lantae.rb --auto-accept "Set up a new Git repository"
+🤖 Thinking...
+I'll help you set up a new Git repository. Would you like me to initialize it in the current directory?
+
+[AUTO-ACCEPT] Automatically confirming action...
+🤖 Executing...
+TOOL_CALL: bash git init
+TOOL_CALL: bash git add .
+TOOL_CALL: bash git commit -m "Initial commit"
+
+Repository initialized and first commit created!
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Claude Code](https://claude.ai/code)
+- Powered by various LLM providers
+- Inspired by the need for unified AI interfaces
+
+## 🔗 Links
+
+- [Ollama](https://ollama.com/) - Local LLM runtime
+- [OpenAI API](https://platform.openai.com/) - GPT models
+- [Anthropic API](https://www.anthropic.com/) - Claude models
+- [AWS Bedrock](https://aws.amazon.com/bedrock/) - Managed AI services
+
+---
+
+**Made with ❤️ and AI assistance**
