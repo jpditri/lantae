@@ -20,12 +20,15 @@ program
   .version(package.version);
 
 program
-  .option('-m, --model <model>', 'specify the model to use', 'qwen2.5:14b')
+  .option('-m, --model <model>', 'specify the model to use', 'cogito:latest')
   .option('-p, --provider <provider>', 'specify the provider (ollama, openai, anthropic, bedrock, gemini, mistral, perplexity)', 'ollama')
   .option('-u, --url <url>', 'Ollama server URL', 'http://localhost:11434')
   .option('-r, --region <region>', 'AWS region for Bedrock and Secrets', 'us-east-1')
   .option('-s, --secret <secret>', 'AWS Secrets Manager secret name', 'lantae/api-keys')
-  .option('-t, --temperature <temp>', 'set temperature for responses', '0.1');
+  .option('-t, --temperature <temp>', 'set temperature for responses', '0.1')
+  .option('-y, --auto-accept', 'auto-accept all prompts and confirmations')
+  .option('--planning-mode', 'enable planning mode for complex tasks')
+  .option('--no-banner', 'disable the startup banner');
 
 program
   .command('chat')
@@ -119,7 +122,7 @@ class ProviderManager {
       perplexity: new PerplexityProvider(secretManager)
     };
     this.currentProvider = 'ollama';
-    this.currentModel = 'qwen2.5:14b';
+    this.currentModel = 'cogito:latest';
     
     // Set tool manager for Ollama provider
     if (this.toolManager) {
@@ -137,7 +140,7 @@ class ProviderManager {
     } else {
       // Set default model for provider
       const defaults = {
-        ollama: 'qwen2.5:14b',
+        ollama: 'cogito:latest',
         openai: 'gpt-4o',
         anthropic: 'claude-3-5-sonnet-20241022',
         bedrock: 'claude-3-sonnet',
@@ -932,6 +935,23 @@ async function sendSinglePrompt(prompt, options) {
   }
 }
 
+function printBanner() {
+  console.log(`\x1b[96m
+╔══════════════════════════════════════════════════════════════╗
+║  \x1b[95m██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗\x1b[96m  ║
+║  \x1b[95m██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝\x1b[96m  ║
+║  \x1b[95m██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗\x1b[96m    ║
+║  \x1b[95m██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝\x1b[96m    ║
+║  \x1b[95m███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗\x1b[96m  ║
+║  \x1b[95m╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝\x1b[96m  ║
+║                                                              ║
+║  \x1b[93m🚀 Multi-Provider LLM Interface v${package.version}\x1b[96m                    ║
+║  \x1b[92m⚡ Powered by Cogito Reasoning Model\x1b[96m                      ║
+║  \x1b[94m🔗 Ollama • OpenAI • Anthropic • Bedrock & More\x1b[96m          ║
+╚══════════════════════════════════════════════════════════════╝
+\x1b[0m`);
+}
+
 async function startREPL(options) {
   const secretManager = new SecretManager(options.region, options.secret);
   const toolManager = new ToolManager();
@@ -944,10 +964,22 @@ async function startREPL(options) {
     providerManager.currentModel = options.model;
   }
   
-  console.log(`🔮 Lantae v${package.version}`);
+  if (!options.noBanner) {
+    printBanner();
+  }
+  
   const info = providerManager.getProviderInfo();
-  console.log(`Provider: ${info.provider} | Model: ${info.model}`);
-  console.log('Type "/help" for commands, "exit" or "quit" to end\n');
+  console.log(`\x1b[96mProvider: \x1b[93m${info.provider}\x1b[96m | Model: \x1b[92m${info.model}\x1b[0m`);
+  
+  // Display active modes
+  const modes = [];
+  if (options.autoAccept) modes.push('\x1b[93mAuto-Accept\x1b[0m');
+  if (options.planningMode) modes.push('\x1b[94mPlanning Mode\x1b[0m');
+  if (modes.length > 0) {
+    console.log(`\x1b[96mActive Modes: ${modes.join(', ')}\x1b[0m`);
+  }
+  
+  console.log('\x1b[90mType "/help" for commands, "exit" or "quit" to end\x1b[0m\n');
 
   try {
     const models = await providerManager.listModels();
@@ -990,13 +1022,30 @@ async function startREPL(options) {
       return;
     }
 
-    conversation.push({ role: 'user', content: input });
+    // Handle planning mode
+    let processedInput = input;
+    if (options.planningMode && !input.toLowerCase().includes('execute') && !input.toLowerCase().includes('proceed')) {
+      processedInput = `Please create a detailed plan for: ${input}. Break it down into clear steps and ask for confirmation before proceeding.`;
+    }
+
+    conversation.push({ role: 'user', content: processedInput });
     
     try {
-      console.log('Thinking...');
+      console.log('🤖 Thinking...');
       const response = await providerManager.chat(conversation, options);
       conversation.push({ role: 'assistant', content: response });
       console.log('\n' + response + '\n');
+      
+      // Auto-accept mode handling
+      if (options.autoAccept && (response.toLowerCase().includes('would you like') || response.toLowerCase().includes('shall i') || response.toLowerCase().includes('proceed'))) {
+        console.log('\x1b[93m[AUTO-ACCEPT] Automatically confirming action...\x1b[0m\n');
+        conversation.push({ role: 'user', content: 'Yes, please proceed.' });
+        
+        console.log('🤖 Executing...');
+        const autoResponse = await providerManager.chat(conversation, options);
+        conversation.push({ role: 'assistant', content: autoResponse });
+        console.log('\n' + autoResponse + '\n');
+      }
     } catch (error) {
       console.error('Error:', error.message);
     }

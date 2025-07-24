@@ -72,7 +72,7 @@ class ProviderManager
       'perplexity' => PerplexityProvider.new(secret_manager)
     }
     @current_provider = 'ollama'
-    @current_model = 'cogito'
+    @current_model = 'cogito:latest'
     
     # Set tool manager for Ollama provider
     @providers['ollama'].set_tool_manager(@tool_manager) if @tool_manager
@@ -89,7 +89,7 @@ class ProviderManager
     else
       # Set default model for provider
       defaults = {
-        'ollama' => 'cogito',
+        'ollama' => 'cogito:latest',
         'openai' => 'gpt-4o',
         'anthropic' => 'claude-3-5-sonnet-20241022',
         'bedrock' => 'claude-3-sonnet',
@@ -711,6 +711,25 @@ rescue => e
   exit 1
 end
 
+def print_banner
+  puts <<~BANNER
+    #{"\e[96m"}
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  #{"\e[95m"}██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗#{"\e[96m"}  ║
+    ║  #{"\e[95m"}██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝#{"\e[96m"}  ║
+    ║  #{"\e[95m"}██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗#{"\e[96m"}    ║
+    ║  #{"\e[95m"}██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝#{"\e[96m"}    ║
+    ║  #{"\e[95m"}███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗#{"\e[96m"}  ║
+    ║  #{"\e[95m"}╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝#{"\e[96m"}  ║
+    ║                                                              ║
+    ║  #{"\e[93m"}🚀 Multi-Provider LLM Interface v#{VERSION}#{"\e[96m"}                    ║
+    ║  #{"\e[92m"}⚡ Powered by Cogito Reasoning Model#{"\e[96m"}                      ║
+    ║  #{"\e[94m"}🔗 Ollama • OpenAI • Anthropic • Bedrock & More#{"\e[96m"}          ║
+    ╚══════════════════════════════════════════════════════════════╝
+    #{"\e[0m"}
+  BANNER
+end
+
 def start_repl(options)
   secret_manager = SecretManager.new(options[:region], options[:secret])
   tool_manager = ToolManager.new
@@ -723,10 +742,18 @@ def start_repl(options)
     provider_manager.current_model = options[:model]
   end
   
-  puts "🔮 Lantae v#{VERSION}"
+  print_banner unless options[:no_banner]
+  
   info = provider_manager.get_provider_info
-  puts "Provider: #{info[:provider]} | Model: #{info[:model]}"
-  puts 'Type "/help" for commands, "exit" or "quit" to end'
+  puts "#{"\e[96m"}Provider: #{"\e[93m"}#{info[:provider]}#{"\e[96m"} | Model: #{"\e[92m"}#{info[:model]}#{"\e[0m"}"
+  
+  # Display active modes
+  modes = []
+  modes << "#{"\e[93m"}Auto-Accept#{"\e[0m"}" if options[:auto_accept]
+  modes << "#{"\e[94m"}Planning Mode#{"\e[0m"}" if options[:planning_mode]
+  puts "#{"\e[96m"}Active Modes: #{modes.join(', ')}#{"\e[0m"}" unless modes.empty?
+  
+  puts "#{"\e[90m"}Type \"/help\" for commands, \"exit\" or \"quit\" to end#{"\e[0m"}"
   puts
 
   begin
@@ -756,11 +783,26 @@ def start_repl(options)
         next
       end
       
+      # Handle planning mode
+      if options[:planning_mode] && !input.downcase.include?('execute') && !input.downcase.include?('proceed')
+        input = "Please create a detailed plan for: #{input}. Break it down into clear steps and ask for confirmation before proceeding."
+      end
+      
       conversation << { role: 'user', content: input }
       
       response = provider_manager.chat(conversation, options)
       conversation << { role: 'assistant', content: response }
       puts "#{response}\n\n"
+      
+      # Auto-accept mode handling
+      if options[:auto_accept] && (response.downcase.include?('would you like') || response.downcase.include?('shall i') || response.downcase.include?('proceed'))
+        puts "#{"\e[93m"}[AUTO-ACCEPT] Automatically confirming action...#{"\e[0m"}\n"
+        conversation << { role: 'user', content: 'Yes, please proceed.' }
+        
+        auto_response = provider_manager.chat(conversation, options)
+        conversation << { role: 'assistant', content: auto_response }
+        puts "#{auto_response}\n\n"
+      end
       
     rescue Interrupt
       puts "\nGoodbye!"
@@ -855,12 +897,15 @@ end
 
 def main
   options = {
-    model: 'cogito',
+    model: 'cogito:latest',
     provider: 'ollama',
     url: 'http://localhost:11434',
     region: 'us-east-1',
     secret: 'lantae/api-keys',
-    temperature: 0.1
+    temperature: 0.1,
+    auto_accept: false,
+    planning_mode: false,
+    no_banner: false
   }
 
   OptionParser.new do |opts|
@@ -872,6 +917,9 @@ def main
     opts.on('-r', '--region REGION', 'AWS region') { |v| options[:region] = v }
     opts.on('-s', '--secret SECRET', 'AWS Secrets Manager secret name') { |v| options[:secret] = v }
     opts.on('-t', '--temperature TEMP', 'Temperature for responses') { |v| options[:temperature] = v.to_f }
+    opts.on('-y', '--auto-accept', 'Auto-accept all prompts and confirmations') { options[:auto_accept] = true }
+    opts.on('--planning-mode', 'Enable planning mode for complex tasks') { options[:planning_mode] = true }
+    opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
     opts.on('-v', '--version', 'Show version') { puts VERSION; exit }
     opts.on('-h', '--help', 'Show this help') { puts opts; exit }
   end.parse!
