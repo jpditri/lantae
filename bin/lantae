@@ -17,6 +17,8 @@ require_relative '../lib/ruby/execution_engine'
 require_relative '../lib/ruby/task_database'
 require_relative '../lib/ruby/auto_fixer'
 require_relative '../lib/ruby/lsp/client'
+require_relative '../lib/ruby/lsp/server_manager'
+require_relative '../lib/ruby/lsp/auto_starter'
 
 VERSION = '1.0.0'
 
@@ -532,9 +534,25 @@ class ToolManager
   def initialize(mcp_manager = nil, lsp_client = nil)
     @mcp_manager = mcp_manager
     @lsp_client = lsp_client
+    @tools_used = []
+    @files_accessed = []
   end
   
+  attr_reader :tools_used, :files_accessed
+  
   def execute_tool(tool_name, args)
+    # Track tool usage for LSP auto-start
+    @tools_used << tool_name unless @tools_used.include?(tool_name)
+    
+    # Track file access for code intelligence
+    if %w[cat write_file edit_file create_file].include?(tool_name)
+      file_path = args.split(' ').first
+      @files_accessed << file_path if file_path
+    end
+    
+    # Auto-start LSP if beneficial and not running
+    auto_start_lsp_if_beneficial
+    
     # Check if this is an MCP tool (format: server__tool)
     if tool_name.include?('__') && @mcp_manager
       return execute_mcp_tool(tool_name, args)
@@ -613,6 +631,34 @@ class ToolManager
   end
 
   private
+
+  def auto_start_lsp_if_beneficial
+    # Only auto-start if LSP client is not already available
+    return if @lsp_client
+    
+    # Check if LSP auto-start would be beneficial based on tool usage
+    context = {
+      current_directory: Dir.pwd,
+      tools_used: @tools_used,
+      files_accessed: @files_accessed
+    }
+    
+    # Use AutoStarter to determine if LSP should be started
+    if Lantae::LSP::AutoStarter.auto_start_if_beneficial(context)
+      # Try to connect client if server started successfully
+      begin
+        if Lantae::LSP::ServerManager.running?
+          @lsp_client = Lantae::LSP::Client.new
+          @lsp_client.start
+        end
+      rescue => e
+        # Silently handle LSP connection errors - don't interrupt tool execution
+        @lsp_client = nil
+      end
+    end
+  rescue => e
+    # Silently handle any auto-start errors - don't interrupt tool execution
+  end
 
   def execute_mcp_tool(tool_name, args)
     puts "Executing MCP tool: #{tool_name}"
@@ -1023,12 +1069,26 @@ def start_repl(options)
   lsp_client = nil
   if options[:enable_lsp]
     begin
-      lsp_client = Lantae::LSP::Client.new
-      if lsp_client.start
-        puts "✅ LSP server started for enhanced code intelligence"
-      else
-        puts "⚠️  LSP server failed to start, continuing without LSP features"
-        lsp_client = nil
+      # Smart auto-start LSP server if it would be beneficial
+      context = {
+        current_directory: Dir.pwd,
+        tools_used: [],
+        files_accessed: []
+      }
+      
+      if Lantae::LSP::AutoStarter.auto_start_if_beneficial(context.merge(port: options[:lsp_port]))
+        puts "✅ LSP server available"
+      end
+      
+      # Connect client if server is available
+      if Lantae::LSP::ServerManager.running?
+        lsp_client = Lantae::LSP::Client.new
+        if lsp_client.start
+          puts "🔌 Connected to LSP server for enhanced code intelligence"
+        else
+          puts "⚠️  Failed to connect to LSP server"
+          lsp_client = nil
+        end
       end
     rescue => e
       puts "⚠️  LSP initialization error: #{e.message}"
@@ -1132,7 +1192,7 @@ def handle_slash_command(input, provider_manager, tool_manager, conversation, mc
       Available commands:
         /model <name>       - Switch to a different model
         /provider <name>    - Switch provider (ollama, openai, anthropic, bedrock, gemini, mistral, perplexity)
-        /lsp <subcommand>   - LSP commands (status, analyze, format, complete)
+        /lsp <subcommand>   - LSP commands (start, stop, status, analyze, format)
         /models             - List available models for current provider
         /tool <name> <args> - Execute a local tool
         /tools              - List available tools
@@ -1194,7 +1254,7 @@ def handle_slash_command(input, provider_manager, tool_manager, conversation, mc
     handle_mcp_command(args, mcp_manager)
 
   when 'lsp'
-    handle_lsp_command(args, tool_manager.instance_variable_get(:@lsp_client))
+    handle_lsp_command(args, tool_manager.instance_variable_get(:@lsp_client), options)
 
   when 'agent'
     handle_agent_command(args, provider_manager, tool_manager, options)
@@ -1215,26 +1275,56 @@ rescue => e
   puts "Error: #{e.message}"
 end
 
-def handle_lsp_command(args, lsp_client)
-  if lsp_client.nil?
-    puts "❌ LSP is not enabled. Start with --enable-lsp flag."
-    return
-  end
-  
-  subcommand = args.split(' ').first
+def handle_lsp_command(args, lsp_client, options = {})
+  parts = args.split(' ')
+  subcommand = parts.first
   
   case subcommand
+  when 'start'
+    port = parts[1]&.to_i || options[:lsp_port] || 7777
+    if Lantae::LSP::ServerManager.start(port: port)
+      puts "✅ LSP server started on port #{port}"
+    else
+      puts "❌ Failed to start LSP server"
+    end
+    
+  when 'stop'
+    if Lantae::LSP::ServerManager.stop
+      puts "✅ LSP server stopped"
+    else
+      puts "❌ Failed to stop LSP server"
+    end
+    
+  when 'restart'
+    port = parts[1]&.to_i || options[:lsp_port] || 7777
+    if Lantae::LSP::ServerManager.restart(port: port)
+      puts "✅ LSP server restarted on port #{port}"
+    else
+      puts "❌ Failed to restart LSP server"
+    end
+    
   when 'status'
-    puts "LSP Server Status: #{lsp_client.instance_variable_get(:@running) ? '✅ Running' : '❌ Stopped'}"
-    if lsp_client.capabilities.any?
-      puts "Capabilities:"
-      lsp_client.capabilities.each do |cap, value|
-        puts "  - #{cap}: #{value ? '✓' : '✗'}"
+    Lantae::LSP::ServerManager.status
+    
+    if lsp_client
+      puts "\nClient Status: #{lsp_client.instance_variable_get(:@running) ? '✅ Connected' : '❌ Disconnected'}"
+      if lsp_client.capabilities.any?
+        puts "Client Capabilities:"
+        lsp_client.capabilities.each do |cap, value|
+          puts "  - #{cap}: #{value ? '✓' : '✗'}"
+        end
       end
+    else
+      puts "\nClient Status: ❌ Not initialized"
     end
     
   when 'analyze'
-    file_path = args.split(' ', 2)[1]
+    if lsp_client.nil?
+      puts "❌ LSP client not connected. Use /lsp start first."
+      return
+    end
+    
+    file_path = parts[1]
     if file_path.nil? || file_path.empty?
       puts "Usage: /lsp analyze <file_path>"
       return
@@ -1245,13 +1335,18 @@ def handle_lsp_command(args, lsp_client)
       lsp_client.open_file(file_path, content)
       # Wait a moment for diagnostics
       sleep(0.5)
-      puts "File analyzed: #{file_path}"
+      puts "✅ File analyzed: #{file_path}"
     else
-      puts "File not found: #{file_path}"
+      puts "❌ File not found: #{file_path}"
     end
     
   when 'format'
-    file_path = args.split(' ', 2)[1]
+    if lsp_client.nil?
+      puts "❌ LSP client not connected. Use /lsp start first."
+      return
+    end
+    
+    file_path = parts[1]
     if file_path.nil? || file_path.empty?
       puts "Usage: /lsp format <file_path>"
       return
@@ -1272,19 +1367,22 @@ def handle_lsp_command(args, lsp_client)
           end
         end
       else
-        puts "No formatting changes needed"
+        puts "ℹ️  No formatting changes needed"
       end
     else
-      puts "File not found: #{file_path}"
+      puts "❌ File not found: #{file_path}"
     end
     
   when 'complete'
-    puts "Interactive completion not yet implemented. Use code completion in your editor."
+    puts "ℹ️  Interactive completion not yet implemented. Use code completion in your editor."
     
   else
     puts <<~HELP
       LSP Commands:
-        /lsp status              - Show LSP server status
+        /lsp start [port]        - Start LSP server
+        /lsp stop                - Stop LSP server  
+        /lsp restart [port]      - Restart LSP server
+        /lsp status              - Show server and client status
         /lsp analyze <file>      - Analyze a file for issues
         /lsp format <file>       - Format a file
         /lsp complete            - Get completions (coming soon)
@@ -1483,6 +1581,7 @@ def main
     opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }
     opts.on('--enable-lsp', 'Enable LSP (Language Server Protocol) for code intelligence') { options[:enable_lsp] = true }
+    opts.on('--lsp-port PORT', 'LSP server port (default: 7777)') { |v| options[:lsp_port] = v.to_i }
     opts.on('-v', '--version', 'Show version') { puts VERSION; exit }
     opts.on('-h', '--help', 'Show this help') { puts opts; exit }
   end.parse!

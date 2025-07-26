@@ -2,6 +2,7 @@ require_relative 'base_command'
 require_relative 'commands/help_command'
 require_relative 'commands/provider_command'
 require_relative 'commands/model_command'
+require_relative 'commands/lsp_command'
 
 module Lantae
   module CLI
@@ -106,11 +107,13 @@ module Lantae
         register_command(Commands::HelpCommand.new)
         register_command(Commands::ProviderCommand.new)
         register_command(Commands::ModelCommand.new)
+        register_command(Commands::LspCommand.new)
         
         # Command aliases
         register_alias('h', 'help')
         register_alias('p', 'provider')
         register_alias('m', 'model')
+        register_alias('l', 'lsp')
       end
     end
   end
