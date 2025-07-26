@@ -1,4 +1,9 @@
+# Silence parser version compatibility warning
+original_verbose = $VERBOSE
+$VERBOSE = nil
 require 'parser/current'
+$VERBOSE = original_verbose
+
 require 'json'
 
 class TaskAnalyzer

@@ -1593,6 +1593,6 @@ def main
   end
 end
 
-if __FILE__ == $0
+if __FILE__ == $0 || File.basename($0) == 'lantae'
   main
 end

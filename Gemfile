@@ -5,7 +5,7 @@ gem 'aws-sdk-bedrockruntime', '~> 1.0'
 gem 'json', '~> 2.0'
 gem 'readline', '~> 0.0.2'
 gem 'sqlite3', '~> 1.7'
-gem 'parser', '~> 3.3'
+gem 'parser', '~> 3.3', '>= 3.3.6'
 gem 'logger', '~> 1.6'
 
 group :test do
