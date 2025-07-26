@@ -1,0 +1,662 @@
+#!/usr/bin/env ruby
+
+require 'json'
+require 'optparse'
+require 'readline'
+require 'logger'
+require 'fileutils'
+
+# Load the new modular architecture
+require_relative '../lib/ruby/config/configuration'
+require_relative '../lib/ruby/providers/provider_registry'
+require_relative '../lib/ruby/cli/command_registry'
+require_relative '../lib/ruby/mcp_manager'
+require_relative '../lib/ruby/planning_agent'
+require_relative '../lib/ruby/task_analyzer'
+require_relative '../lib/ruby/execution_engine'
+require_relative '../lib/ruby/task_database'
+require_relative '../lib/ruby/auto_fixer'
+require_relative '../lib/ruby/lsp/client'
+
+VERSION = '1.0.0'
+
+class SecretManager
+  def initialize(region = 'us-east-1', secret_name = 'lantae/api-keys')
+    @region = region
+    @secret_name = secret_name
+    @client = nil
+    @cached_secrets = {}
+  end
+
+  def get_api_key(provider)
+    # First check environment variable
+    env_key = "#{provider.upcase}_API_KEY"
+    return ENV[env_key] if ENV[env_key]
+
+    # Check cached secrets
+    if @cached_secrets[provider]
+      ENV[env_key] = @cached_secrets[provider]
+      return @cached_secrets[provider]
+    end
+
+    # Fetch from AWS Secrets Manager
+    begin
+      init_client
+      response = @client.get_secret_value(secret_id: @secret_name)
+      secrets = JSON.parse(response.secret_string)
+      
+      # Cache all secrets and set environment variables
+      secrets.each do |key, value|
+        @cached_secrets[key] = value
+        ENV["#{key.upcase}_API_KEY"] = value
+      end
+      
+      @cached_secrets[provider]
+    rescue Aws::SecretsManager::Errors::ResourceNotFoundException
+      raise "AWS Secret '#{@secret_name}' not found. Create it with your API keys."
+    rescue => e
+      raise "Failed to retrieve API keys from AWS Secrets Manager: #{e.message}"
+    end
+  end
+
+  private
+
+  def init_client
+    return if @client
+    @client = Aws::SecretsManager::Client.new(region: @region)
+  end
+end
+
+class ToolManager
+  def initialize(mcp_manager = nil, lsp_client = nil)
+    @mcp_manager = mcp_manager
+    @lsp_client = lsp_client
+  end
+  
+  def execute_tool(tool_name, args)
+    # Check if this is an MCP tool (format: server__tool)
+    if tool_name.include?('__') && @mcp_manager
+      return execute_mcp_tool(tool_name, args)
+    end
+    
+    case tool_name
+    when 'bash'
+      execute_bash(args)
+    when 'ruby'
+      execute_ruby(args)
+    when 'python'
+      execute_python(args)
+    when 'ls'
+      list_files(args.empty? ? '.' : args)
+    when 'cat'
+      read_file(args)
+    when 'pwd'
+      Dir.pwd
+    when 'git'
+      execute_bash("git #{args}")
+    when 'bundle'
+      execute_bash("bundle #{args}")
+    when 'write_file'
+      write_file(args)
+    when 'edit_file'
+      edit_file(args)
+    when 'create_file'
+      create_file(args)
+    when 'delete_file'
+      delete_file(args)
+    when 'mkdir'
+      make_directory(args)
+    when 'find'
+      find_files(args)
+    else
+      raise "Tool '#{tool_name}' not found. Available tools: #{list_available_tools.join(', ')}"
+    end
+  end
+
+  def get_tools_context
+    <<~CONTEXT
+      Available tools you can use:
+      - bash <command>: Execute bash commands
+      - cat <file>: Read file contents
+      - write_file <file> <content>: Write content to a file
+      - edit_file <file> <line_number> <new_content>: Edit a specific line in a file
+      - create_file <file> [content]: Create a new file with optional content
+      - delete_file <file>: Delete a file
+      - mkdir <directory>: Create a directory
+      - ls [directory]: List files in directory
+      - find <pattern>: Find files matching pattern
+      - pwd: Get current directory
+      - git <command>: Execute git commands
+      - bundle <command>: Execute bundle commands
+      - ruby <code>: Execute Ruby code
+      - python <code>: Execute Python code
+
+      To use a tool, format your response like this:
+      TOOL_CALL: tool_name arguments
+      For example:
+      TOOL_CALL: cat Gemfile
+      TOOL_CALL: write_file hello.txt Hello World!
+      TOOL_CALL: edit_file main.rb 5 puts "Updated line"
+    CONTEXT
+  end
+
+  def list_available_tools
+    builtin_tools = %w[bash ruby python ls cat pwd git bundle write_file edit_file create_file delete_file mkdir find]
+    
+    if @mcp_manager
+      mcp_tools = @mcp_manager.get_available_tools.keys
+      builtin_tools + mcp_tools
+    else
+      builtin_tools
+    end
+  end
+
+  private
+
+  def execute_mcp_tool(tool_name, args)
+    puts "Executing MCP tool: #{tool_name}"
+    
+    begin
+      # Parse arguments for MCP tool call
+      arguments = parse_mcp_arguments(args)
+      
+      result = @mcp_manager.call_mcp_tool(tool_name, arguments)
+      
+      if result[:success]
+        format_mcp_result(result[:result])
+      else
+        "MCP Tool Error: #{result[:error][:message] || 'Unknown error'}"
+      end
+      
+    rescue => e
+      puts "MCP tool execution failed: #{e.message}"
+      "Error executing MCP tool #{tool_name}: #{e.message}"
+    end
+  end
+  
+  def parse_mcp_arguments(args_string)
+    # Simple argument parsing - could be enhanced for complex structures
+    return {} if args_string.nil? || args_string.strip.empty?
+    
+    # Try to parse as JSON first
+    begin
+      JSON.parse(args_string)
+    rescue JSON::ParserError
+      # Fallback to simple key=value parsing
+      args = {}
+      args_string.split(' ').each do |pair|
+        if pair.include?('=')
+          key, value = pair.split('=', 2)
+          args[key] = value
+        end
+      end
+      args
+    end
+  end
+  
+  def format_mcp_result(result)
+    if result.is_a?(Hash) && result[:content]
+      # Handle MCP content format
+      content_parts = result[:content].map do |item|
+        case item[:type]
+        when 'text'
+          item[:text]
+        when 'image'
+          "[Image: #{item[:data] ? 'embedded' : item[:url]}]"
+        else
+          item.to_s
+        end
+      end
+      content_parts.join("\n")
+    else
+      result.to_s
+    end
+  end
+
+  def execute_bash(command)
+    result = `#{command} 2>&1`
+    $?.success? ? result : "Error: #{result}"
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def execute_ruby(code)
+    eval(code).to_s
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def execute_python(code)
+    temp_file = Tempfile.new(['lantae', '.py'])
+    temp_file.write(code)
+    temp_file.close
+    
+    result = `python3 #{temp_file.path} 2>&1`
+    temp_file.unlink
+    result
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def list_files(dir)
+    Dir.entries(dir).join("\n")
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def read_file(file_path)
+    File.read(file_path)
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def write_file(args)
+    parts = args.split(' ', 2)
+    file_path = parts[0]
+    content = parts[1] || ''
+    
+    File.write(file_path, content)
+    
+    # Notify LSP about file change
+    if @lsp_client
+      begin
+        @lsp_client.open_file(file_path, content)
+        @lsp_client.get_code_actions(file_path, 0, 0, 0, 0)
+      rescue => e
+        # LSP errors shouldn't break file operations
+      end
+    end
+    
+    "File #{file_path} written successfully"
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def edit_file(args)
+    parts = args.split(' ', 3)
+    file_path = parts[0]
+    line_number = parts[1].to_i
+    new_content = parts[2] || ''
+    
+    lines = File.readlines(file_path)
+    
+    if line_number > 0 && line_number <= lines.length
+      lines[line_number - 1] = new_content + "\n"
+      File.write(file_path, lines.join)
+      "Line #{line_number} in #{file_path} edited successfully"
+    else
+      "Error: Line number #{line_number} out of range"
+    end
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def create_file(args)
+    parts = args.split(' ', 2)
+    file_path = parts[0]
+    content = parts[1] || ''
+    
+    if File.exist?(file_path)
+      "Error: File #{file_path} already exists"
+    else
+      File.write(file_path, content)
+      
+      # Notify LSP about new file
+      if @lsp_client
+        begin
+          @lsp_client.open_file(file_path, content)
+          if content.include?('Generated by Lantae AI')
+            @lsp_client.get_code_actions(file_path, 0, 0, 0, 0)
+          end
+        rescue => e
+          # LSP errors shouldn't break file operations
+        end
+      end
+      
+      "File #{file_path} created successfully"
+    end
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def delete_file(file_path)
+    File.delete(file_path)
+    "File #{file_path} deleted successfully"
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def make_directory(dir_path)
+    require 'fileutils'
+    FileUtils.mkdir_p(dir_path)
+    "Directory #{dir_path} created successfully"
+  rescue => e
+    "Error: #{e.message}"
+  end
+
+  def find_files(pattern)
+    result = `find . -name "#{pattern}" 2>&1`
+    result.empty? ? 'No files found' : result
+  rescue => e
+    "Error: #{e.message}"
+  end
+end
+
+def send_single_prompt(prompt, options)
+  config = Lantae::Config::Configuration.new
+  config.merge!(options)
+  
+  secret_manager = SecretManager.new(config.get(:region), config.get(:secret))
+  
+  # Initialize MCP if enabled
+  mcp_manager = nil
+  if config.get(:enable_mcp)
+    mcp_manager = MCPManager.new
+    if mcp_manager.load_server_configs(config.get(:mcp_config))
+      mcp_manager.discover_servers
+      mcp_manager.connect_all_servers
+    else
+      mcp_manager = nil
+    end
+  end
+  
+  tool_manager = ToolManager.new(mcp_manager, nil)  # No LSP in non-REPL mode
+  provider_registry = Lantae::Providers::ProviderRegistry.new(secret_manager, tool_manager)
+  
+  if config.get(:provider) != 'ollama'
+    provider_registry.switch_provider(config.get(:provider), config.get(:model))
+  else
+    provider_registry.instance_variable_set(:@current_model, config.get(:model))
+  end
+  
+  # Handle agent mode
+  if config.get(:agent_mode)
+    execute_agent_task(prompt, provider_registry, tool_manager, config)
+  else
+    response = provider_registry.chat([{ role: 'user', content: prompt }], config.to_h)
+    puts "#{response}"
+  end
+rescue => e
+  puts "Error: #{e.message}"
+  exit 1
+end
+
+def execute_agent_task(task_description, provider_registry, tool_manager, config)
+  puts "#{"\e[96m"}🤖 Agent Mode: Planning and executing task...#{"\e[0m"}\n"
+  
+  # Initialize agent components
+  task_analyzer = TaskAnalyzer.new
+  task_database = TaskDatabase.new
+  
+  planning_agent = PlanningAgent.new(
+    provider_registry, 
+    tool_manager,
+    task_analyzer: task_analyzer,
+    logger: Logger.new(STDOUT)
+  )
+  
+  execution_engine = ExecutionEngine.new(
+    provider_registry,
+    tool_manager,
+    logger: Logger.new(STDOUT)
+  )
+  
+  # Plan the task
+  puts "#{"\e[93m"}📋 Creating execution plan...#{"\e[0m"}"
+  task = planning_agent.plan_task(task_description)
+  
+  # Display the plan
+  puts "\n#{"\e[92m"}📊 Execution Plan:#{"\e[0m"}"
+  puts task.to_tree_string
+  
+  # Ask for confirmation unless auto-accept
+  unless config.get(:auto_accept)
+    print "\n#{"\e[94m"}Proceed with execution? (y/n): #{"\e[0m"}"
+    response = gets.chomp.downcase
+    unless response == 'y' || response == 'yes'
+      puts "#{"\e[91m"}Execution cancelled.#{"\e[0m"}"
+      return
+    end
+  end
+  
+  # Execute the plan
+  puts "\n#{"\e[93m"}⚙️  Executing plan...#{"\e[0m"}"
+  success = planning_agent.execute_plan(task, execution_engine)
+  
+  # Record execution results
+  if task.execution_result
+    task_database.record_task_execution(task, task.execution_result)
+  end
+  
+  # Display results
+  puts "\n#{"\e[92m"}📊 Execution Results:#{"\e[0m"}"
+  puts task.to_tree_string
+  
+  if success
+    puts "\n#{"\e[92m"}✅ Task completed successfully!#{"\e[0m"}"
+  else
+    puts "\n#{"\e[91m"}❌ Task failed. Check the execution tree for details.#{"\e[0m"}"
+    
+    # Show optimization suggestions
+    suggestions = task_database.suggest_prompt_improvements(task_description)
+    if suggestions.any?
+      puts "\n#{"\e[93m"}💡 Suggestions for improvement:#{"\e[0m"}"
+      suggestions.each do |suggestion|
+        puts "  - #{suggestion[:recommendation]} (#{suggestion[:reason]})"
+      end
+    end
+  end
+end
+
+def print_banner
+  puts <<~BANNER
+    #{"\e[96m"}
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  #{"\e[95m"}██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗#{"\e[96m"}  ║
+    ║  #{"\e[95m"}██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝#{"\e[96m"}  ║
+    ║  #{"\e[95m"}██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗#{"\e[96m"}    ║
+    ║  #{"\e[95m"}██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝#{"\e[96m"}    ║
+    ║  #{"\e[95m"}███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗#{"\e[96m"}  ║
+    ║  #{"\e[95m"}╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝#{"\e[96m"}  ║
+    ║                                                              ║
+    ║  #{"\e[93m"}🚀 Multi-Provider LLM Interface v#{VERSION} (Modular)#{"\e[96m"}        ║
+    ║  #{"\e[92m"}⚡ Refactored Architecture with Clean Separation#{"\e[96m"}        ║
+    ║  #{"\e[94m"}🔗 Providers • Commands • Config • Tools#{"\e[96m"}              ║
+    ╚══════════════════════════════════════════════════════════════╝
+    #{"\e[0m"}
+  BANNER
+end
+
+def setup_autocomplete(provider_registry, command_registry)
+  # Enhanced autocomplete using the new command registry
+  comp = proc do |input|
+    if input.start_with?('/')
+      command_registry.complete_command(input, provider_registry: provider_registry)
+    else
+      # File path completion for non-command input
+      Dir.glob("#{input}*")
+    end
+  end
+  
+  Readline.completion_proc = comp
+  Readline.completion_append_character = ' '
+end
+
+def start_repl(options)
+  config = Lantae::Config::Configuration.new
+  config.merge!(options)
+  
+  secret_manager = SecretManager.new(config.get(:region), config.get(:secret))
+  
+  # Initialize MCP if enabled
+  mcp_manager = nil
+  if config.get(:enable_mcp)
+    mcp_manager = MCPManager.new
+    if mcp_manager.load_server_configs(config.get(:mcp_config))
+      mcp_manager.discover_servers
+      mcp_manager.connect_all_servers
+    else
+      mcp_manager = nil
+    end
+  end
+  
+  # Initialize LSP client for enhanced code support
+  lsp_client = nil
+  if config.get(:enable_lsp)
+    begin
+      lsp_client = Lantae::LSP::Client.new
+      if lsp_client.start
+        puts "✅ LSP server started for enhanced code intelligence"
+      else
+        puts "⚠️  LSP server failed to start, continuing without LSP features"
+        lsp_client = nil
+      end
+    rescue => e
+      puts "⚠️  LSP initialization error: #{e.message}"
+      lsp_client = nil
+    end
+  end
+  
+  tool_manager = ToolManager.new(mcp_manager, lsp_client)
+  provider_registry = Lantae::Providers::ProviderRegistry.new(secret_manager, tool_manager)
+  command_registry = Lantae::CLI::CommandRegistry.new
+  conversation = []
+  
+  if config.get(:provider) != 'ollama'
+    provider_registry.switch_provider(config.get(:provider), config.get(:model))
+  else
+    provider_registry.instance_variable_set(:@current_model, config.get(:model))
+  end
+  
+  print_banner unless config.get(:no_banner)
+  
+  info = provider_registry.get_provider_info
+  puts "#{"\e[96m"}Provider: #{"\e[93m"}#{info[:provider]}#{"\e[96m"} | Model: #{"\e[92m"}#{info[:model]}#{"\e[0m"}"
+  
+  # Display active modes
+  modes = []
+  modes << "#{"\e[93m"}Auto-Accept#{"\e[0m"}" if config.get(:auto_accept)
+  modes << "#{"\e[94m"}Planning Mode#{"\e[0m"}" if config.get(:planning_mode)
+  modes << "#{"\e[95m"}Agent Mode#{"\e[0m"}" if config.get(:agent_mode)
+  puts "#{"\e[96m"}Active Modes: #{modes.join(', ')}#{"\e[0m"}" unless modes.empty?
+  
+  puts "#{"\e[90m"}Type \"/help\" for commands, \"exit\" or \"quit\" to end#{"\e[0m"}"
+  puts
+
+  begin
+    models = provider_registry.list_models
+    if models.empty?
+      puts '⚠️  No models found.'
+    elsif !models.include?(provider_registry.current_model)
+      puts "⚠️  Model \"#{provider_registry.current_model}\" not found. Available models:"
+      models.first(10).each { |m| puts "  - #{m}" }
+      puts "  ... and #{models.length - 10} more" if models.length > 10
+      puts
+    end
+  rescue => e
+    puts "Error checking models: #{e.message}"
+  end
+  
+  # Set up enhanced autocomplete
+  setup_autocomplete(provider_registry, command_registry)
+
+  loop do
+    begin
+      input = Readline.readline('> ', true)
+      break if input.nil? || input.strip == 'exit' || input.strip == 'quit'
+      
+      input = input.strip
+      next if input.empty?
+      
+      if input.start_with?('/')
+        # Handle commands using the new command registry
+        context = {
+          provider_registry: provider_registry,
+          tool_manager: tool_manager,
+          conversation: conversation,
+          mcp_manager: mcp_manager,
+          lsp_client: lsp_client,
+          config: config
+        }
+        
+        command_registry.execute_command(input, context)
+        next
+      end
+      
+      # Handle planning mode
+      if config.get(:planning_mode) && !input.downcase.include?('execute') && !input.downcase.include?('proceed')
+        input = "Please create a detailed plan for: #{input}. Break it down into clear steps and ask for confirmation before proceeding."
+      end
+      
+      conversation << { role: 'user', content: input }
+      
+      response = provider_registry.chat(conversation, config.to_h)
+      conversation << { role: 'assistant', content: response }
+      puts "#{response}\n\n"
+      
+      # Auto-accept mode handling
+      if config.get(:auto_accept) && (response.downcase.include?('would you like') || response.downcase.include?('shall i') || response.downcase.include?('proceed'))
+        puts "#{"\e[93m"}[AUTO-ACCEPT] Automatically confirming action...#{"\e[0m"}\n"
+        conversation << { role: 'user', content: 'Yes, please proceed.' }
+        
+        auto_response = provider_registry.chat(conversation, config.to_h)
+        conversation << { role: 'assistant', content: auto_response }
+        puts "#{auto_response}\n\n"
+      end
+      
+    rescue Interrupt
+      puts "\nGoodbye!"
+      break
+    rescue => e
+      puts "Error: #{e.message}"
+    end
+  end
+end
+
+def main
+  options = {
+    model: 'cogito:latest',
+    provider: 'ollama',
+    url: 'http://localhost:11434',
+    region: 'us-east-1',
+    secret: 'lantae/api-keys',
+    temperature: 0.1,
+    auto_accept: false,
+    planning_mode: false,
+    no_banner: false,
+    enable_mcp: false,
+    mcp_config: nil,
+    agent_mode: false,
+    enable_lsp: false
+  }
+
+  OptionParser.new do |opts|
+    opts.banner = "Usage: #{$0} [options] [prompt]"
+    
+    opts.on('-m', '--model MODEL', 'Specify the model to use') { |v| options[:model] = v }
+    opts.on('-p', '--provider PROVIDER', 'Specify the provider') { |v| options[:provider] = v }
+    opts.on('-u', '--url URL', 'Ollama server URL') { |v| options[:url] = v }
+    opts.on('-r', '--region REGION', 'AWS region') { |v| options[:region] = v }
+    opts.on('-s', '--secret SECRET', 'AWS Secrets Manager secret name') { |v| options[:secret] = v }
+    opts.on('-t', '--temperature TEMP', 'Temperature for responses') { |v| options[:temperature] = v.to_f }
+    opts.on('-y', '--auto-accept', 'Auto-accept all prompts and confirmations') { options[:auto_accept] = true }
+    opts.on('--planning-mode', 'Enable planning mode for complex tasks') { options[:planning_mode] = true }
+    opts.on('--agent', 'Enable agent mode with task decomposition') { options[:agent_mode] = true }
+    opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
+    opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
+    opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }
+    opts.on('--enable-lsp', 'Enable LSP (Language Server Protocol) for code intelligence') { options[:enable_lsp] = true }
+    opts.on('-v', '--version', 'Show version') { puts VERSION; exit }
+    opts.on('-h', '--help', 'Show this help') { puts opts; exit }
+  end.parse!
+
+  if ARGV.empty?
+    start_repl(options)
+  else
+    send_single_prompt(ARGV.join(' '), options)
+  end
+end
+
+if __FILE__ == $0
+  main
+end
