@@ -1,0 +1,3 @@
+#!/usr/bin/env ruby
+# Lantae CLI wrapper script
+load File.join(File.dirname(__FILE__), 'bin', 'lantae')

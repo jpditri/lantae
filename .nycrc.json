@@ -1,32 +1,3 @@
 {
-  "all": true,
-  "reporter": ["html", "text", "lcov", "json"],
-  "include": [
-    "index.js",
-    "lsp-server.js",
-    "lsp-client.js"
-  ],
-  "exclude": [
-    "test-*.js",
-    "node_modules/**",
-    "coverage/**",
-    "test-output/**",
-    "test-simple/**",
-    "test-lsp-basic/**",
-    "vscode-extension/**",
-    "*.test.js"
-  ],
-  "report-dir": "./coverage",
-  "temp-dir": "./coverage/.nyc_output",
-  "check-coverage": true,
-  "branches": 50,
-  "lines": 60,
-  "functions": 50,
-  "statements": 60,
-  "watermarks": {
-    "lines": [60, 80],
-    "functions": [50, 80],
-    "branches": [50, 80],
-    "statements": [60, 80]
-  }
+  "extends": "./tests/.nycrc.json"
 }

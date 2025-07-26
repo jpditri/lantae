@@ -8,7 +8,7 @@ require 'readline'
 require 'tempfile'
 require 'aws-sdk-secretsmanager'
 require 'aws-sdk-bedrockruntime'
-require_relative 'mcp_manager'
+require_relative '../lib/ruby/mcp_manager'
 
 VERSION = '1.0.0'
 

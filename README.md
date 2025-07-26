@@ -54,10 +54,10 @@ cd lantae
 bundle install
 
 # Make executable
-chmod +x lantae.rb
+chmod +x lantae
 
 # Run with default cogito model
-./lantae.rb
+./lantae
 ```
 
 #### Node.js Version
@@ -66,10 +66,10 @@ chmod +x lantae.rb
 npm install
 
 # Make executable
-chmod +x index.js
+chmod +x lantae.js
 
 # Run with default cogito model
-./index.js
+./lantae.js
 ```
 
 ## 📖 Usage
@@ -79,31 +79,31 @@ chmod +x index.js
 #### Start Interactive Chat
 ```bash
 # Ruby version
-./lantae.rb
+./lantae
 
 # Node.js version
-./index.js
+./lantae.js
 ```
 
 #### Single Prompt
 ```bash
 # Ruby
-./lantae.rb "Explain quantum computing"
+./lantae "Explain quantum computing"
 
 # Node.js
-./index.js "Explain quantum computing"
+./lantae.js "Explain quantum computing"
 ```
 
 #### With Options
 ```bash
 # Auto-accept mode with planning
-./lantae.rb --auto-accept --planning-mode "Build a web scraper"
+./lantae --auto-accept --planning-mode "Build a web scraper"
 
 # Different model and provider
-./lantae.rb -p openai -m gpt-4o "Analyze this code"
+./lantae -p openai -m gpt-4o "Analyze this code"
 
 # Disable banner
-./lantae.rb --no-banner "Quick question"
+./lantae --no-banner "Quick question"
 ```
 
 ### Command Line Options
@@ -238,10 +238,10 @@ mcp_servers:
 Enable MCP support with the `--enable-mcp` flag:
 ```bash
 # Start with MCP support
-./lantae.rb --enable-mcp
+./lantae --enable-mcp
 
 # Use custom config file
-./lantae.rb --enable-mcp --mcp-config /path/to/mcp_servers.yml
+./lantae --enable-mcp --mcp-config /path/to/mcp_servers.yml
 ```
 
 #### MCP Commands
@@ -286,7 +286,7 @@ Based on extensive testing, here are the top reasoning models by speed and quali
 
 ### Basic Conversation
 ```bash
-$ ./lantae.rb
+$ ./lantae
 ╔══════════════════════════════════════════════════════════════╗
 ║  🚀 Multi-Provider LLM Interface v1.0.0                     ║
 ║  ⚡ Powered by Cogito Reasoning Model                        ║
@@ -318,7 +318,7 @@ The Python script has been created! You can run it with `python hello.py`.
 
 ### Auto-Accept Mode
 ```bash
-$ ./lantae.rb --auto-accept "Set up a new Git repository"
+$ ./lantae --auto-accept "Set up a new Git repository"
 🤖 Thinking...
 I'll help you set up a new Git repository. Would you like me to initialize it in the current directory?
 
@@ -330,6 +330,10 @@ TOOL_CALL: bash git commit -m "Initial commit"
 
 Repository initialized and first commit created!
 ```
+
+## 📁 Project Structure
+
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed directory layout and file organization.
 
 ## 🤝 Contributing
 

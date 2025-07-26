@@ -2,23 +2,23 @@
   "name": "lantae",
   "version": "1.0.0",
   "description": "Multi-provider AI CLI/REPL with local tool support",
-  "main": "index.js",
+  "main": "bin/lantae.js",
   "bin": {
-    "lantae": "./index.js"
+    "lantae": "./lantae.js"
   },
   "scripts": {
-    "test": "node test-simple.js",
-    "test-full": "node test-lantae-lsp.js",
-    "test-simple": "node test-simple.js",
-    "test-lsp": "node test-lsp-basic.js",
-    "test-coverage": "node test-coverage.js",
+    "test": "node tests/test-simple.js",
+    "test-full": "node tests/test-lantae-lsp.js",
+    "test-simple": "node tests/test-simple.js",
+    "test-lsp": "node tests/test-lsp-basic.js",
+    "test-coverage": "node tests/test-coverage.js",
     "coverage": "nyc npm test",
     "coverage-report": "nyc report --reporter=html",
-    "start": "node index.js",
-    "setup": "node setup-secrets.js",
-    "setup-secrets": "node setup-secrets.js",
-    "lsp-server": "node lsp-server.js",
-    "lsp-test": "node lsp-client.js"
+    "start": "node lantae.js",
+    "setup": "node scripts/setup-secrets.js",
+    "setup-secrets": "node scripts/setup-secrets.js",
+    "lsp-server": "node lib/node/lsp-server.js",
+    "lsp-test": "node lib/node/lsp-client.js"
   },
   "keywords": [
     "ai",
