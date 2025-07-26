@@ -1,0 +1,62 @@
+positive_traits:
+  - name: Brave
+    opposites: [cowardly, timid]
+    roleplay_hints: ["stands tall in danger", "first to volunteer", "protects others"]
+  - name: Generous
+    opposites: [greedy, miserly]
+    roleplay_hints: ["shares freely", "helps the needy", "gives without counting"]
+  - name: Honest
+    opposites: [deceptive, dishonest]
+    roleplay_hints: ["speaks plainly", "keeps promises", "admits mistakes"]
+  - name: Patient
+    opposites: [impatient, hasty]
+    roleplay_hints: ["waits for right moment", "teaches carefully", "never rushes"]
+  - name: Loyal
+    opposites: [treacherous, fickle]
+    roleplay_hints: ["stands by friends", "keeps secrets", "defends allies"]
+
+negative_traits:
+  - name: Arrogant
+    opposites: [humble, modest]
+    roleplay_hints: ["dismissive of others", "boasts often", "refuses advice"]
+  - name: Greedy
+    opposites: [generous, charitable]
+    roleplay_hints: ["hoards wealth", "always wants more", "suspicious of charity"]
+  - name: Cowardly
+    opposites: [brave, courageous]
+    roleplay_hints: ["avoids conflict", "makes excuses", "abandons allies"]
+  - name: Cruel
+    opposites: [kind, merciful]
+    roleplay_hints: ["enjoys suffering", "mocks weakness", "shows no mercy"]
+  - name: Lazy
+    opposites: [industrious, diligent]
+    roleplay_hints: ["avoids work", "makes excuses", "takes shortcuts"]
+
+neutral_traits:
+  - name: Cautious
+    related: [careful, prudent]
+    roleplay_hints: ["checks twice", "plans ahead", "avoids risks"]
+  - name: Ambitious
+    related: [driven, determined]
+    roleplay_hints: ["always planning", "seeks advancement", "competitive"]
+  - name: Curious
+    related: [inquisitive, nosy]
+    roleplay_hints: ["asks questions", "investigates", "eavesdrops"]
+  - name: Traditional
+    related: [conservative, orthodox]
+    roleplay_hints: ["follows customs", "respects elders", "resists change"]
+  - name: Pragmatic
+    related: [practical, realistic]
+    roleplay_hints: ["focuses on results", "ignores ideals", "takes what works"]
+
+quirks:
+  - talks to themselves when thinking
+  - never makes eye contact
+  - constantly fidgets with something
+  - speaks in third person
+  - always hungry
+  - collects unusual items
+  - superstitious about numbers
+  - laughs at inappropriate times
+  - terrible memory for names
+  - excellent memory for faces

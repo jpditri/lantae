@@ -3,13 +3,12 @@
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jpditri/lantae)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Ruby](https://img.shields.io/badge/ruby-3.0+-red.svg)](https://www.ruby-lang.org/)
-[![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)](https://nodejs.org/)
 
 > **🚀 A powerful CLI/REPL interface for multiple LLM providers with advanced reasoning capabilities**
 >
 > **Special Thanks**: LSP Enhanced features inspired by the Engineer and Founder of [CubicLayer.com](https://cubiclayer.com)
 
-Lantae provides a unified interface to interact with various Large Language Model providers including Ollama, OpenAI, Anthropic, AWS Bedrock, Google Gemini, Mistral, and Perplexity. Built with both Ruby and Node.js implementations for maximum flexibility.
+Lantae provides a unified interface to interact with various Large Language Model providers including Ollama, OpenAI, Anthropic, AWS Bedrock, Google Gemini, Mistral, and Perplexity. Built in Ruby with advanced planning agent capabilities.
 
 ## ✨ Features
 
@@ -19,11 +18,13 @@ Lantae provides a unified interface to interact with various Large Language Mode
 - **Interactive REPL**: Full-featured chat interface with conversation history
 - **Tool Integration**: Execute local tools (bash, git, file operations) directly from chat
 - **AWS Integration**: Secure API key management via AWS Secrets Manager
+- **Planning Agent**: Advanced task decomposition and execution with verification
 
 ### 🎨 **Enhanced UX**
 - **Cool ASCII Banner**: Beautiful colorful startup display
 - **Auto-Accept Mode** (`-y`): Automatically confirm actions and prompts
 - **Planning Mode**: Force detailed task breakdown for complex requests
+- **Agent Mode** (`--agent`): Autonomous task planning and execution
 - **Colored Output**: ANSI color support for better readability
 - **Mode Indicators**: Visual feedback for active features
 - **Tab Autocomplete**: Smart command and argument completion in REPL
@@ -37,20 +38,18 @@ Lantae provides a unified interface to interact with various Large Language Mode
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Ruby**: 3.0+ (for Ruby CLI)
-- **Node.js**: 18+ (for Node.js CLI)
+- **Ruby**: 3.0+ 
 - **Ollama**: Running locally for local models
 - **AWS CLI**: Configured for Secrets Manager (optional)
 
 ### Installation
 
-#### Ruby Version
 ```bash
 # Clone the repository
 git clone https://github.com/jpditri/lantae.git
 cd lantae
 
-# Install dependencies
+# Install Ruby dependencies
 bundle install
 
 # Make executable
@@ -60,38 +59,18 @@ chmod +x lantae
 ./lantae
 ```
 
-#### Node.js Version
-```bash
-# Install dependencies
-npm install
-
-# Make executable
-chmod +x lantae.js
-
-# Run with default cogito model
-./lantae.js
-```
-
 ## 📖 Usage
 
 ### Basic Commands
 
 #### Start Interactive Chat
 ```bash
-# Ruby version
 ./lantae
-
-# Node.js version
-./lantae.js
 ```
 
 #### Single Prompt
 ```bash
-# Ruby
 ./lantae "Explain quantum computing"
-
-# Node.js
-./lantae.js "Explain quantum computing"
 ```
 
 #### With Options
@@ -108,16 +87,19 @@ chmod +x lantae.js
 
 ### Command Line Options
 
-| Option | Ruby | Node.js | Description |
-|--------|------|---------|-------------|
-| Model | `-m`, `--model` | `-m`, `--model` | Specify model (default: cogito:latest) |
-| Provider | `-p`, `--provider` | `-p`, `--provider` | Choose provider (ollama, openai, etc.) |
-| Auto-Accept | `-y`, `--auto-accept` | `-y`, `--auto-accept` | Auto-confirm all prompts |
-| Planning Mode | `--planning-mode` | `--planning-mode` | Enable detailed task planning |
-| No Banner | `--no-banner` | `--no-banner` | Disable startup banner |
-| Temperature | `-t`, `--temperature` | `-t`, `--temperature` | Response randomness (0.0-1.0) |
-| Enable MCP | `--enable-mcp` | N/A | Enable Model Context Protocol support |
-| MCP Config | `--mcp-config PATH` | N/A | Path to MCP server configuration file |
+| Option | Flag | Description |
+|--------|------|-------------|
+| Model | `-m`, `--model` | Specify model (default: cogito:latest) |
+| Provider | `-p`, `--provider` | Choose provider (ollama, openai, etc.) |
+| Auto-Accept | `-y`, `--auto-accept` | Auto-confirm all prompts |
+| Planning Mode | `--planning-mode` | Enable detailed task planning |
+| Agent Mode | `--agent` | Enable autonomous agent execution |
+| No Banner | `--no-banner` | Disable startup banner |
+| Temperature | `-t`, `--temperature` | Response randomness (0.0-1.0) |
+| Enable MCP | `--enable-mcp` | Enable Model Context Protocol support |
+| MCP Config | `--mcp-config PATH` | Path to MCP server configuration file |
+| Version | `-v`, `--version` | Show version |
+| Help | `-h`, `--help` | Show help message |
 
 ### Interactive Commands
 
@@ -132,13 +114,14 @@ Once in the REPL, use these slash commands:
 | `/tool <name> <args>` | Execute a local tool |
 | `/tools` | List available tools |
 | `/mcp <subcommand>` | MCP server management (status, health, tools, reload) |
+| `/agent <subcommand>` | Agent commands (plan, execute, report, history) |
 | `/clear` | Clear conversation history |
 | `/info` | Show current provider/model |
 | `/env` | Check environment variables |
 
 ### Tab Autocomplete
 
-Both Ruby and JavaScript CLIs support intelligent tab completion for faster and more accurate command entry:
+The Ruby CLI supports intelligent tab completion for faster and more accurate command entry:
 
 **Supported Completions:**
 - **Slash Commands**: Type `/` and press TAB to see available commands
@@ -329,6 +312,78 @@ TOOL_CALL: bash git add .
 TOOL_CALL: bash git commit -m "Initial commit"
 
 Repository initialized and first commit created!
+```
+
+## 🤖 Planning Agent
+
+The Planning Agent is an advanced feature that breaks down complex tasks into manageable subtasks, executes them with verification, and learns from successes and failures.
+
+### Features
+
+- **Hierarchical Task Decomposition**: Automatically breaks complex tasks into simpler subtasks
+- **Complexity Assessment**: Evaluates task difficulty on a 1-10 scale
+- **Static Code Analysis**: Verifies generated code for common issues
+- **Auto-Fix Capabilities**: Automatically fixes common errors (EOF markers, unclosed strings, etc.)
+- **Success Tracking**: Records execution results to improve future performance
+- **Rollback Support**: Can revert changes if execution fails
+
+### Usage
+
+#### Command Line
+```bash
+# Execute a task with the agent
+./lantae --agent "Create a Python web scraper for news articles"
+
+# With auto-accept to skip confirmations
+./lantae --agent --auto-accept "Build a REST API with authentication"
+```
+
+#### REPL Commands
+```bash
+# Plan without executing
+> /agent plan Create a todo list application
+
+# Execute with planning
+> /agent execute Build a simple calculator
+
+# View execution report
+> /agent report
+
+# View task history
+> /agent history
+```
+
+### How It Works
+
+1. **Task Analysis**: The agent analyzes the complexity of your request
+2. **Decomposition**: Complex tasks are broken into smaller, executable subtasks
+3. **Planning**: A hierarchical execution plan is created
+4. **Execution**: Each subtask is executed with the appropriate LLM
+5. **Verification**: Results are verified using static analysis
+6. **Auto-Fix**: Common issues are automatically corrected
+7. **Learning**: Success rates are tracked for continuous improvement
+
+### Example Output
+```
+🤖 Agent Mode: Planning and executing task...
+📋 Creating execution plan...
+
+📊 Execution Plan:
+- [○] Create a Python web scraper (complexity: 7.2)
+  - [○] Set up project structure (complexity: 2.1)
+  - [○] Install required dependencies (complexity: 1.8)
+  - [○] Create scraper class (complexity: 4.5)
+  - [○] Add error handling (complexity: 3.2)
+  - [○] Create main script (complexity: 2.8)
+
+⚙️  Executing plan...
+[✓] Set up project structure
+[✓] Install required dependencies
+[✓] Create scraper class (1 auto-fix applied)
+[✓] Add error handling
+[✓] Create main script
+
+✅ Task completed successfully!
 ```
 
 ## 📁 Project Structure

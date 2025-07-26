@@ -6,9 +6,16 @@ require 'uri'
 require 'optparse'
 require 'readline'
 require 'tempfile'
+require 'logger'
+require 'fileutils'
 require 'aws-sdk-secretsmanager'
 require 'aws-sdk-bedrockruntime'
 require_relative '../lib/ruby/mcp_manager'
+require_relative '../lib/ruby/planning_agent'
+require_relative '../lib/ruby/task_analyzer'
+require_relative '../lib/ruby/execution_engine'
+require_relative '../lib/ruby/task_database'
+require_relative '../lib/ruby/auto_fixer'
 
 VERSION = '1.0.0'
 
@@ -794,11 +801,83 @@ def send_single_prompt(prompt, options)
     provider_manager.current_model = options[:model]
   end
   
-  response = provider_manager.chat([{ role: 'user', content: prompt }], options)
-  puts "#{response}"
+  # Handle agent mode
+  if options[:agent_mode]
+    execute_agent_task(prompt, provider_manager, tool_manager, options)
+  else
+    response = provider_manager.chat([{ role: 'user', content: prompt }], options)
+    puts "#{response}"
+  end
 rescue => e
   puts "Error: #{e.message}"
   exit 1
+end
+
+def execute_agent_task(task_description, provider_manager, tool_manager, options)
+  puts "#{"\e[96m"}🤖 Agent Mode: Planning and executing task...#{"\e[0m"}\n"
+  
+  # Initialize agent components
+  task_analyzer = TaskAnalyzer.new
+  task_database = TaskDatabase.new
+  
+  planning_agent = PlanningAgent.new(
+    provider_manager, 
+    tool_manager,
+    task_analyzer: task_analyzer,
+    logger: Logger.new(STDOUT)
+  )
+  
+  execution_engine = ExecutionEngine.new(
+    provider_manager,
+    tool_manager,
+    logger: Logger.new(STDOUT)
+  )
+  
+  # Plan the task
+  puts "#{"\e[93m"}📋 Creating execution plan...#{"\e[0m"}"
+  task = planning_agent.plan_task(task_description)
+  
+  # Display the plan
+  puts "\n#{"\e[92m"}📊 Execution Plan:#{"\e[0m"}"
+  puts task.to_tree_string
+  
+  # Ask for confirmation unless auto-accept
+  unless options[:auto_accept]
+    print "\n#{"\e[94m"}Proceed with execution? (y/n): #{"\e[0m"}"
+    response = gets.chomp.downcase
+    unless response == 'y' || response == 'yes'
+      puts "#{"\e[91m"}Execution cancelled.#{"\e[0m"}"
+      return
+    end
+  end
+  
+  # Execute the plan
+  puts "\n#{"\e[93m"}⚙️  Executing plan...#{"\e[0m"}"
+  success = planning_agent.execute_plan(task, execution_engine)
+  
+  # Record execution results
+  if task.execution_result
+    task_database.record_task_execution(task, task.execution_result)
+  end
+  
+  # Display results
+  puts "\n#{"\e[92m"}📊 Execution Results:#{"\e[0m"}"
+  puts task.to_tree_string
+  
+  if success
+    puts "\n#{"\e[92m"}✅ Task completed successfully!#{"\e[0m"}"
+  else
+    puts "\n#{"\e[91m"}❌ Task failed. Check the execution tree for details.#{"\e[0m"}"
+    
+    # Show optimization suggestions
+    suggestions = task_database.suggest_prompt_improvements(task_description)
+    if suggestions.any?
+      puts "\n#{"\e[93m"}💡 Suggestions for improvement:#{"\e[0m"}"
+      suggestions.each do |suggestion|
+        puts "  - #{suggestion[:recommendation]} (#{suggestion[:reason]})"
+      end
+    end
+  end
 end
 
 def print_banner
@@ -931,6 +1010,7 @@ def start_repl(options)
   modes = []
   modes << "#{"\e[93m"}Auto-Accept#{"\e[0m"}" if options[:auto_accept]
   modes << "#{"\e[94m"}Planning Mode#{"\e[0m"}" if options[:planning_mode]
+  modes << "#{"\e[95m"}Agent Mode#{"\e[0m"}" if options[:agent_mode]
   puts "#{"\e[96m"}Active Modes: #{modes.join(', ')}#{"\e[0m"}" unless modes.empty?
   
   puts "#{"\e[90m"}Type \"/help\" for commands, \"exit\" or \"quit\" to end#{"\e[0m"}"
@@ -962,7 +1042,7 @@ def start_repl(options)
       next if input.empty?
       
       if input.start_with?('/')
-        handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager)
+        handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager, options)
         next
       end
       
@@ -996,7 +1076,7 @@ def start_repl(options)
   end
 end
 
-def handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager = nil)
+def handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager = nil, options = {})
   parts = input[1..-1].split(' ')
   command = parts[0]
   args = parts[1..-1].join(' ')
@@ -1011,6 +1091,7 @@ def handle_slash_command(input, provider_manager, tool_manager, conversation, mc
         /tool <name> <args> - Execute a local tool
         /tools              - List available tools
         /mcp <subcommand>   - MCP server management (status, health, tools, reload)
+        /agent <subcommand> - Agent management (plan, execute, report, history)
         /clear              - Clear conversation history
         /info               - Show current provider and model info
         /env                - Show environment variables status
@@ -1065,6 +1146,9 @@ def handle_slash_command(input, provider_manager, tool_manager, conversation, mc
 
   when 'mcp'
     handle_mcp_command(args, mcp_manager)
+
+  when 'agent'
+    handle_agent_command(args, provider_manager, tool_manager, options)
 
   when 'env'
     puts 'Environment Variables Status:'
@@ -1175,6 +1259,71 @@ rescue => e
   puts "MCP command error: #{e.message}"
 end
 
+def handle_agent_command(args, provider_manager, tool_manager, options)
+  parts = args.split(' ', 2)
+  subcommand = parts[0]
+  task_description = parts[1]
+  
+  case subcommand
+  when 'plan'
+    if task_description.nil? || task_description.empty?
+      puts "Usage: /agent plan <task description>"
+      return
+    end
+    
+    # Just create and show the plan
+    task_analyzer = TaskAnalyzer.new
+    planning_agent = PlanningAgent.new(provider_manager, tool_manager, task_analyzer: task_analyzer)
+    
+    puts "#{"\e[93m"}📋 Creating execution plan...#{"\e[0m"}"
+    task = planning_agent.plan_task(task_description)
+    
+    puts "\n#{"\e[92m"}📊 Execution Plan:#{"\e[0m"}"
+    puts task.to_tree_string
+    
+  when 'execute'
+    if task_description.nil? || task_description.empty?
+      puts "Usage: /agent execute <task description>"
+      return
+    end
+    
+    # Full agent execution
+    execute_agent_task(task_description, provider_manager, tool_manager, options)
+    
+  when 'report'
+    # Show task execution report
+    task_database = TaskDatabase.new
+    puts task_database.generate_optimization_report
+    
+  when 'history'
+    # Show recent task history
+    task_database = TaskDatabase.new
+    recent_tasks = task_database.get_common_failures(10)
+    
+    puts "#{"\e[92m"}Recent Task History:#{"\e[0m"}"
+    puts "-" * 50
+    
+    recent_tasks.each_with_index do |task, i|
+      puts "#{i + 1}. #{task[:description][0..60]}#{'...' if task[:description].length > 60}"
+      puts "   Failures: #{task[:failure_count]}"
+      puts "   Issues: #{task[:common_issues].join(', ')}" if task[:common_issues].any?
+      puts
+    end
+    
+  when '', nil
+    puts "Agent subcommands: plan, execute, report, history"
+    puts "Example: /agent plan Create a REST API"
+    
+  else
+    puts "Unknown agent subcommand: #{subcommand}"
+    puts "Available: plan, execute, report, history"
+  end
+  
+rescue => e
+  puts "Agent command error: #{e.message}"
+  puts e.backtrace.first(5).join("\n") if ENV['DEBUG']
+end
+
 def main
   options = {
     model: 'cogito:latest',
@@ -1187,7 +1336,8 @@ def main
     planning_mode: false,
     no_banner: false,
     enable_mcp: false,
-    mcp_config: nil
+    mcp_config: nil,
+    agent_mode: false
   }
 
   OptionParser.new do |opts|
@@ -1201,6 +1351,7 @@ def main
     opts.on('-t', '--temperature TEMP', 'Temperature for responses') { |v| options[:temperature] = v.to_f }
     opts.on('-y', '--auto-accept', 'Auto-accept all prompts and confirmations') { options[:auto_accept] = true }
     opts.on('--planning-mode', 'Enable planning mode for complex tasks') { options[:planning_mode] = true }
+    opts.on('--agent', 'Enable agent mode with task decomposition') { options[:agent_mode] = true }
     opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
     opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }

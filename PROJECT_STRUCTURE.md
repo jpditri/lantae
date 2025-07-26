@@ -2,17 +2,18 @@
 
 ```
 lantae/
-├── bin/                    # Executable files
-│   ├── lantae             # Ruby CLI executable
-│   └── lantae.js          # Node.js CLI executable
+├── bin/                    # Executable file
+│   └── lantae             # Ruby CLI executable
 │
 ├── lib/                    # Library modules
-│   ├── ruby/              # Ruby modules
-│   │   ├── mcp_manager.rb # MCP management functionality
-│   │   └── mcp_client.rb  # MCP client implementation
-│   └── node/              # Node.js modules
-│       ├── lsp-server.js  # LSP server implementation
-│       └── lsp-client.js  # LSP client implementation
+│   └── ruby/              # Ruby modules
+│       ├── planning_agent.rb  # Task planning and decomposition
+│       ├── task_analyzer.rb   # Static code analysis
+│       ├── execution_engine.rb # Task execution with verification
+│       ├── task_database.rb   # SQLite task history tracking
+│       ├── auto_fixer.rb      # Automatic code fixes
+│       ├── mcp_manager.rb     # MCP management functionality
+│       └── mcp_client.rb      # MCP client implementation
 │
 ├── docs/                   # Documentation
 │   ├── COVERAGE-REPORT.md # Test coverage report
@@ -22,29 +23,16 @@ lantae/
 │   └── TEST-RESULTS.md    # Test execution results
 │
 ├── scripts/                # Utility scripts
-│   ├── setup-secrets.js   # Node.js secrets setup
-│   ├── setup-secrets.rb   # Ruby secrets setup
-│   └── run-coverage.js    # Coverage runner
+│   └── setup-secrets.rb   # Ruby secrets setup
 │
 ├── tests/                  # Test files and outputs
-│   ├── test-simple.js     # Simple functionality tests
-│   ├── test-lantae-lsp.js # LSP integration tests
-│   ├── test-lsp-basic.js  # Basic LSP tests
-│   ├── test-coverage.js   # Coverage tests
 │   ├── test_mcp_simple.rb # MCP functionality tests
 │   ├── coverage/          # Coverage reports
 │   └── test-*/            # Test output directories
 │
-├── vscode-extension/       # VS Code extension
-│   ├── package.json       # Extension manifest
-│   └── tsconfig.json      # TypeScript configuration
-│
-├── lantae                  # Ruby CLI wrapper script
-├── lantae.js              # Node.js CLI wrapper script
+├── lantae                  # Main executable script
 ├── README.md              # Main documentation
 ├── PROJECT_STRUCTURE.md   # This file
-├── package.json           # Node.js project manifest
-├── package-lock.json      # Node.js dependency lock
 ├── Gemfile                # Ruby dependencies
 └── Gemfile.lock           # Ruby dependency lock
 ```
@@ -52,21 +40,21 @@ lantae/
 ## Directory Purposes
 
 ### `/bin`
-Contains the main executable files for both Ruby and Node.js implementations.
+Contains the main Ruby CLI executable.
 
-### `/lib`
-Houses reusable library modules separated by language.
+### `/lib/ruby`
+Houses all Ruby library modules including the planning agent system, MCP support, and analysis tools.
 
 ### `/docs`
 All documentation files except the main README.
 
 ### `/scripts`
-Utility and setup scripts for project maintenance.
+Utility scripts for project setup and maintenance.
 
 ### `/tests`
 Test files and test-related outputs, including coverage reports.
 
 ### Root Files
-- Wrapper scripts (`lantae`, `lantae.js`) for easy execution
-- Configuration files (package.json, Gemfile)
-- Main README and project structure documentation
+- `lantae` - Main executable script
+- `Gemfile` - Ruby dependency management
+- `README.md` - Main project documentation

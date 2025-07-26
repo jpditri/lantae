@@ -1,0 +1,435 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'yaml'
+require 'json'
+
+require_relative '../lib/ruby/procedural/smart_randomizer'
+require_relative '../lib/ruby/procedural/template_engine'
+require_relative '../lib/ruby/procedural/content_pools'
+require_relative '../lib/ruby/procedural/campaign_context'
+
+class QuestWeaver
+  def initialize(campaign_path: nil)
+    @campaign_context = Procedural::CampaignContext.new(campaign_path: campaign_path)
+    @template_engine = Procedural::TemplateEngine.new(campaign_path: campaign_path)
+    @templates = YAML.load_file('data/templates/quests/quest_templates.yml')
+    
+    load_word_banks
+    load_templates
+    
+    @quest_randomizer = Procedural::SmartRandomizer.new(
+      @templates.keys,
+      memory_size: 3,
+      weights: @templates.transform_values { |v| v['weight'] || 1.0 }
+    )
+  end
+  
+  def generate(options = {})
+    template_name = options[:type] || @quest_randomizer.next
+    template_data = @templates[template_name]
+    
+    quest = {
+      type: template_name,
+      tags: template_data['tags'],
+      description: generate_quest_description(template_name, options),
+      hooks: generate_hooks(template_name),
+      complications: [],
+      rewards: generate_reward_details(template_name)
+    }
+    
+    if options[:use_campaign]
+      integrate_campaign_elements(quest)
+    end
+    
+    if options[:add_subquests]
+      quest[:subquests] = generate_subquests(quest)
+    end
+    
+    if options[:add_consequences]
+      quest[:consequences] = generate_consequences(quest)
+    end
+    
+    quest
+  end
+  
+  def generate_batch(count, options = {})
+    quests = []
+    count.times { quests << generate(options) }
+    
+    if options[:linked]
+      link_quests(quests)
+    end
+    
+    quests
+  end
+  
+  private
+  
+  def load_word_banks
+    word_banks = YAML.load_file('data/word-banks/quest_elements.yml')
+    
+    word_banks.each do |category, words|
+      if words.is_a?(Hash)
+        @template_engine.load_word_bank(category, words.values.flatten)
+      else
+        @template_engine.load_word_bank(category, words)
+      end
+    end
+  end
+  
+  def load_templates
+    @templates.each do |name, data|
+      @template_engine.load_template(name, data['template'])
+    end
+  end
+  
+  def generate_quest_description(template_name, options)
+    overrides = {}
+    
+    if options[:npc]
+      overrides['NPC_TYPE'] = options[:npc]
+    end
+    
+    if options[:location]
+      overrides['LOCATION'] = options[:location]
+    end
+    
+    if options[:reward]
+      overrides['REWARD'] = options[:reward]
+    end
+    
+    @template_engine.generate(
+      template_name, 
+      overrides: overrides,
+      campaign_specific: options[:use_campaign]
+    )
+  end
+  
+  def generate_hooks(template_name)
+    hooks = []
+    
+    case template_name
+    when 'fetch_quest'
+      hooks << "Overheard conversation about the missing item"
+      hooks << "Previous adventurer failed and shares information"
+      hooks << "Map found on defeated enemy"
+    when 'escort_quest'
+      hooks << "Traveler seeks protection at inn"
+      hooks << "Official posting at guild board"
+      hooks << "Desperate plea in the street"
+    when 'investigation_quest'
+      hooks << "Witness approaches party secretly"
+      hooks << "Strange occurrence happens in front of party"
+      hooks << "Authority figure recruits capable individuals"
+    else
+      hooks << "Rumors in the tavern"
+      hooks << "Direct approach by quest giver"
+      hooks << "Discovery of relevant information"
+    end
+    
+    hooks.sample(2)
+  end
+  
+  def generate_reward_details(template_name)
+    base_reward = {
+      monetary: rand(50..500) * (template_name.include?('noble') ? 5 : 1),
+      items: [],
+      services: [],
+      reputation: []
+    }
+    
+    case template_name
+    when 'fetch_quest', 'escort_quest'
+      base_reward[:items] << "Useful traveling gear"
+    when 'investigation_quest'
+      base_reward[:services] << "Access to restricted information"
+      base_reward[:reputation] << "Favor with local authorities"
+    when 'elimination_quest'
+      base_reward[:items] << "Trophy from the creature"
+      base_reward[:reputation] << "Local hero status"
+    end
+    
+    base_reward
+  end
+  
+  def integrate_campaign_elements(quest)
+    campaign_npcs = @campaign_context.get_context_for(:npcs)
+    campaign_locations = @campaign_context.get_context_for(:locations)
+    
+    if campaign_npcs.any? && quest[:description].include?('[NPC_TYPE]')
+      npc = campaign_npcs.keys.sample
+      quest[:description].gsub!(/\[NPC_TYPE\]/, npc)
+      quest[:involves_npcs] = [npc]
+    end
+    
+    if campaign_locations.any? && quest[:description].include?('[LOCATION]')
+      location = campaign_locations.keys.sample
+      quest[:description].gsub!(/\[LOCATION\]/, location)
+      quest[:involves_locations] = [location]
+    end
+    
+    recent_events = @campaign_context.data[:events]
+    if recent_events.any?
+      quest[:related_to_event] = recent_events.last[:description]
+    end
+  end
+  
+  def generate_subquests(main_quest)
+    subquests = []
+    
+    if main_quest[:type] == 'fetch_quest'
+      subquests << {
+        title: "Gather information about location",
+        description: "Learn about the defenses and hazards",
+        optional: false
+      }
+    elsif main_quest[:type] == 'investigation_quest'
+      subquests << {
+        title: "Interview key witnesses",
+        description: "Speak with at least three people who saw the events",
+        optional: false
+      }
+      subquests << {
+        title: "Research historical records",
+        description: "Check archives for similar occurrences",
+        optional: true
+      }
+    end
+    
+    subquests
+  end
+  
+  def generate_consequences(quest)
+    {
+      success: generate_success_consequences(quest),
+      failure: generate_failure_consequences(quest),
+      partial: generate_partial_consequences(quest)
+    }
+  end
+  
+  def generate_success_consequences(quest)
+    consequences = ["Quest giver's gratitude and promised reward"]
+    
+    case quest[:type]
+    when 'rescue_quest'
+      consequences << "Rescued person becomes ally"
+      consequences << "Family offers additional rewards"
+    when 'diplomatic_quest'
+      consequences << "Peace between factions"
+      consequences << "Trade routes reopen"
+    when 'elimination_quest'
+      consequences << "Area becomes safe for travel"
+      consequences << "Monster's hoard discovered"
+    end
+    
+    consequences
+  end
+  
+  def generate_failure_consequences(quest)
+    consequences = ["Quest giver's disappointment"]
+    
+    case quest[:type]
+    when 'rescue_quest'
+      consequences << "Victim dies or disappears forever"
+      consequences << "Vengeful family becomes enemy"
+    when 'diplomatic_quest'
+      consequences << "War breaks out"
+      consequences << "Party blamed for failure"
+    when 'time_sensitive'
+      consequences << "Opportunity lost forever"
+    end
+    
+    consequences
+  end
+  
+  def generate_partial_consequences(quest)
+    [
+      "Reduced reward",
+      "Quest giver satisfied but not impressed",
+      "Complications arise from incomplete solution",
+      "Another group claims partial credit"
+    ]
+  end
+  
+  def link_quests(quests)
+    return if quests.size < 2
+    
+    quests.each_cons(2) do |quest1, quest2|
+      link_type = ['leads_to', 'unlocks', 'references', 'conflicts_with'].sample
+      
+      quest1[:linked_quest] = {
+        id: quests.index(quest2),
+        type: link_type
+      }
+      
+      case link_type
+      when 'leads_to'
+        quest1[:consequences][:success] << "Reveals information about next quest"
+      when 'unlocks'
+        quest2[:requirements] = "Complete previous quest first"
+      when 'references'
+        quest2[:hooks] << "Previous quest giver mentions this opportunity"
+      when 'conflicts_with'
+        quest2[:complications] << "Actions in previous quest create obstacles"
+      end
+    end
+  end
+  
+  def format_output(quest, format)
+    case format
+    when 'json'
+      JSON.pretty_generate(quest)
+    when 'yaml'
+      quest.to_yaml
+    when 'text'
+      format_text_output(quest)
+    when 'dm_notes'
+      format_dm_notes(quest)
+    else
+      quest.inspect
+    end
+  end
+  
+  def format_text_output(quest)
+    output = []
+    output << "=== #{quest[:type].gsub('_', ' ').capitalize} Quest ==="
+    output << ""
+    output << "Description:"
+    output << quest[:description]
+    output << ""
+    output << "Hooks:"
+    quest[:hooks].each { |hook| output << "  - #{hook}" }
+    
+    if quest[:subquests]&.any?
+      output << ""
+      output << "Subquests:"
+      quest[:subquests].each do |sq|
+        output << "  - #{sq[:title]} (#{sq[:optional] ? 'optional' : 'required'})"
+        output << "    #{sq[:description]}"
+      end
+    end
+    
+    if quest[:rewards]
+      output << ""
+      output << "Rewards:"
+      output << "  - #{quest[:rewards][:monetary]} gold pieces"
+      quest[:rewards][:items].each { |item| output << "  - #{item}" }
+      quest[:rewards][:reputation].each { |rep| output << "  - #{rep}" }
+    end
+    
+    if quest[:consequences]
+      output << ""
+      output << "Consequences:"
+      output << "  Success: #{quest[:consequences][:success].first}"
+      output << "  Failure: #{quest[:consequences][:failure].first}"
+    end
+    
+    output.join("\n")
+  end
+  
+  def format_dm_notes(quest)
+    output = format_text_output(quest).split("\n")
+    
+    output << ""
+    output << "=== DM Notes ==="
+    output << "Tags: #{quest[:tags].join(', ')}"
+    
+    if quest[:involves_npcs]
+      output << "Campaign NPCs: #{quest[:involves_npcs].join(', ')}"
+    end
+    
+    if quest[:involves_locations]
+      output << "Campaign Locations: #{quest[:involves_locations].join(', ')}"
+    end
+    
+    if quest[:related_to_event]
+      output << "Related Event: #{quest[:related_to_event]}"
+    end
+    
+    output << ""
+    output << "Potential Complications:"
+    output << "  - Weather turns bad during travel"
+    output << "  - Rival group attempts same quest"
+    output << "  - Quest giver has hidden motives"
+    output << "  - Target is not what it seems"
+    
+    output.join("\n")
+  end
+end
+
+options = {
+  count: 1,
+  format: 'text',
+  use_campaign: false,
+  add_subquests: false,
+  add_consequences: true
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: quest-weaver-templates [options]"
+  
+  opts.on("-n", "--count COUNT", Integer, "Number of quests to generate") do |n|
+    options[:count] = n
+  end
+  
+  opts.on("-t", "--type TYPE", "Specific quest type") do |t|
+    options[:type] = t
+  end
+  
+  opts.on("-f", "--format FORMAT", "Output format (text, json, yaml, dm_notes)") do |f|
+    options[:format] = f
+  end
+  
+  opts.on("-c", "--campaign PATH", "Use campaign context") do |path|
+    options[:campaign_path] = path
+    options[:use_campaign] = true
+  end
+  
+  opts.on("--linked", "Generate linked quest chain") do
+    options[:linked] = true
+  end
+  
+  opts.on("--subquests", "Add subquests") do
+    options[:add_subquests] = true
+  end
+  
+  opts.on("--npc NAME", "Specific NPC quest giver") do |name|
+    options[:npc] = name
+  end
+  
+  opts.on("--location NAME", "Specific location") do |loc|
+    options[:location] = loc
+  end
+  
+  opts.on("-h", "--help", "Show this help") do
+    puts opts
+    puts "\nAvailable quest types:"
+    weaver = QuestWeaver.new
+    YAML.load_file('data/templates/quests/quest_templates.yml').each do |type, data|
+      puts "  #{type} - #{data['tags'].join(', ')}"
+    end
+    exit
+  end
+end.parse!
+
+weaver = QuestWeaver.new(campaign_path: options[:campaign_path])
+
+if options[:count] == 1
+  quest = weaver.generate(options)
+  puts weaver.send(:format_output, quest, options[:format])
+else
+  quests = weaver.generate_batch(options[:count], options)
+  
+  case options[:format]
+  when 'json'
+    puts JSON.pretty_generate(quests)
+  when 'yaml'
+    puts quests.to_yaml
+  else
+    quests.each_with_index do |quest, i|
+      puts weaver.send(:format_output, quest, options[:format])
+      puts "\n" + "="*50 + "\n\n" if i < quests.length - 1
+    end
+  end
+end

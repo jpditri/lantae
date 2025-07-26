@@ -1,0 +1,571 @@
+ADJECTIVE:
+  desperate: [desperate, anxious, worried, frantic, distraught]
+  mysterious: [mysterious, enigmatic, secretive, cryptic, shadowy]
+  wealthy: [wealthy, rich, prosperous, affluent, noble]
+  humble: [humble, modest, simple, poor, common]
+
+NPC_TYPE:
+  - merchant
+  - noble
+  - priest
+  - scholar
+  - farmer
+  - artisan
+  - guard captain
+  - guild master
+  - innkeeper
+  - hermit
+
+ITEM:
+  common:
+    - family heirloom
+    - merchant's ledger
+    - sealed letter
+    - medicine bundle
+    - stolen goods
+  magical:
+    - enchanted amulet
+    - crystal orb
+    - ancient tome
+    - magic sword
+    - healing potion
+  valuable:
+    - chest of gold
+    - rare gem
+    - deed to property
+    - noble's signet ring
+    - trade contract
+
+LOCATION:
+  civilized:
+    - abandoned warehouse
+    - rival's mansion
+    - old cemetery
+    - thieves' den
+    - ruined temple
+  wilderness:
+    - goblin cave
+    - haunted forest
+    - mountain pass
+    - swamp ruins
+    - bandit camp
+  dungeon:
+    - ancient crypt
+    - wizard's tower
+    - underground cavern
+    - forgotten mine
+    - sunken temple
+
+REASON:
+  - it was stolen from them
+  - they need it for a ritual
+  - it proves their innocence
+  - their life depends on it
+  - it belonged to their family
+  - they promised to deliver it
+  - it holds vital information
+  - without it, people will die
+
+REWARD:
+  modest:
+    - handful of gold
+    - useful information
+    - letter of recommendation
+    - free room and board
+    - small favor
+  valuable:
+    - bag of gold
+    - magic item
+    - noble's favor
+    - guild membership
+    - land deed
+  service:
+    - training in skill
+    - access to library
+    - introduction to important person
+    - safe passage through territory
+    - alliance with faction
+
+COMPLICATION:
+  - others seek the same prize
+  - the location is well-guarded
+  - time is running out
+  - local authorities forbid it
+  - a rival has hired mercenaries
+  - the weather is treacherous
+  - ancient curse protects it
+  - false information abounds
+
+SKILL_CHECK:
+  - navigating treacherous terrain
+  - solving ancient puzzles
+  - persuading stubborn guards
+  - detecting hidden traps
+  - translating old texts
+  - tracking through wilderness
+  - swimming treacherous waters
+  - climbing sheer walls
+
+OBSTACLE:
+  - territorial monster
+  - rival adventurers
+  - natural hazards
+  - magical wards
+  - suspicious locals
+  - corrupt officials
+  - ancient traps
+  - hostile weather
+
+DANGER:
+  - bandits on the road
+  - assassins from their past
+  - vengeful spirits
+  - wild beasts
+  - political enemies
+  - religious fanatics
+  - magical curses
+  - natural disasters
+
+TIME_PRESSURE:
+  - they will be executed at dawn
+  - the portal closes at midnight
+  - the poison will be fatal by sunset
+  - the army arrives in three days
+  - the ship leaves at high tide
+  - the ceremony begins tomorrow
+  - winter comes in a week
+  - the trace grows cold
+
+THREAT:
+  creature:
+    - ancient dragon
+    - werewolf pack
+    - vampire lord
+    - demon cultists
+    - rogue elementals
+  humanoid:
+    - bandit king
+    - corrupt noble
+    - mad wizard
+    - cult leader
+    - warlord
+
+PROBLEM:
+  - livestock disappears nightly
+  - travelers vanish without trace
+  - crops wither and die
+  - children fall mysteriously ill
+  - trade routes are cut off
+  - water sources are poisoned
+  - buildings collapse at night
+  - strange dreams plague everyone
+
+TWIST:
+  - the threat has sympathetic motives
+  - local authorities protect it
+  - it cannot be killed by normal means
+  - innocent lives depend on it
+  - killing it releases something worse
+  - it knows secrets about the party
+  - it was once human
+  - the real threat is something else
+
+EVENTS:
+  - disappearances
+  - nightmares
+  - apparitions
+  - accidents
+  - thefts
+  - illnesses
+  - tremors
+  - sounds
+
+AUTHORITY_FIGURE:
+  - town elder
+  - guard captain
+  - guild master
+  - local noble
+  - high priest
+  - magistrate
+  - merchant prince
+  - retired adventurer
+
+SUSPICION:
+  - dark magic is at work
+  - a curse has been awakened
+  - someone seeks revenge
+  - ancient evil stirs
+  - a spy operates nearby
+  - corruption runs deep
+  - old enemies return
+  - nature itself rebels
+
+MISLEADING_CLUE:
+  - suspicious newcomer in town
+  - old ruins nearby
+  - recent shipment of goods
+  - traveling performers
+  - unusual weather patterns
+  - missing livestock
+  - strange merchant
+  - local hermit
+
+ACTUAL_CAUSE:
+  - respected citizen's dark secret
+  - natural phenomenon misunderstood
+  - failed magical experiment
+  - ancient artifact activated
+  - political conspiracy
+  - otherworldly influence
+  - generational curse
+  - ecological imbalance
+
+PURPOSE:
+  - important business deal
+  - family wedding
+  - religious pilgrimage
+  - diplomatic meeting
+  - deliver inheritance
+  - seek medical help
+  - attend funeral
+  - claim property
+
+DURATION:
+  - two days
+  - three days
+  - a week
+  - four days
+  - five days
+  - half a day
+  - ten days
+  - a fortnight
+
+HAZARD_LOCATION:
+  - bandit-infested pass
+  - haunted forest
+  - disputed borderlands
+  - treacherous swamp
+  - storm-wracked coast
+  - lawless frontier
+  - war-torn region
+  - monster territory
+
+VICTIM:
+  - merchant's daughter
+  - noble's heir
+  - village priest
+  - skilled artisan
+  - tax collector
+  - foreign diplomat
+  - local hero
+  - innocent child
+
+FATE:
+  - kidnapped
+  - captured
+  - enslaved
+  - imprisoned
+  - enthralled
+  - transformed
+  - held hostage
+  - taken
+
+ANTAGONIST:
+  - goblin raiders
+  - cult fanatics
+  - slavers
+  - rogue wizard
+  - vengeful spirit
+  - criminal gang
+  - corrupt noble
+  - monster pack
+
+CONCERNED_PARTY:
+  - desperate parent
+  - loyal spouse
+  - business partner
+  - childhood friend
+  - religious order
+  - merchant guild
+  - noble patron
+  - entire village
+
+FACTION1:
+  - merchant guild
+  - noble house
+  - religious order
+  - crafters union
+  - mercenary company
+  - wizard college
+  - thieves guild
+  - farming community
+
+FACTION2:
+  - rival merchants
+  - neighboring nobles
+  - heretical sect
+  - foreign traders
+  - city watch
+  - druids circle
+  - assassins guild
+  - nomadic tribes
+
+CONSEQUENCE:
+  - open warfare
+  - economic collapse
+  - mass exodus
+  - divine punishment
+  - magical catastrophe
+  - famine
+  - plague outbreak
+  - political upheaval
+
+DIPLOMATIC_ACTION:
+  - negotiate a truce
+  - arrange a marriage
+  - broker a trade deal
+  - mediate disputes
+  - deliver ultimatum
+  - witness treaty
+  - exchange hostages
+  - establish boundaries
+
+DEADLINE:
+  - harvest season begins
+  - holy day arrives
+  - army mobilizes
+  - ships depart
+  - winter sets in
+  - election occurs
+  - alignment happens
+  - festival starts
+
+POLITICAL_OBSTACLE:
+  - ancient grudges
+  - conflicting laws
+  - proud traditions
+  - religious differences
+  - economic interests
+  - personal vendettas
+  - cultural misunderstandings
+  - succession disputes
+
+AFFECTED_GROUP:
+  - local farmers
+  - traveling merchants
+  - town militia
+  - religious pilgrims
+  - fisher folk
+  - mine workers
+  - border villages
+  - trade caravans
+
+SOLUTION:
+  - eliminate the threat
+  - drive it away
+  - negotiate peace
+  - break the curse
+  - seal it away
+  - appease it
+  - cure the source
+  - restore balance
+
+FACTION:
+  - evil cult
+  - corrupt nobles
+  - foreign spies
+  - dark wizards
+  - criminal syndicate
+  - hostile kingdom
+  - demon worshippers
+  - necromancer cabal
+
+EVIL_PLAN:
+  - summon a demon
+  - poison water supply
+  - assassinate the king
+  - start a war
+  - unleash plague
+  - corrupt the youth
+  - destroy the harvest
+  - open dark portal
+
+METHOD:
+  - ancient ritual
+  - magical artifact
+  - mass hypnosis
+  - alchemical poison
+  - summoning circle
+  - cursed item
+  - mind control
+  - blood sacrifice
+
+QUEST_GIVER:
+  - resistance member
+  - concerned citizen
+  - divine vision
+  - dying messenger
+  - anonymous note
+  - escaped prisoner
+  - reformed cultist
+  - loyal servant
+
+SABOTAGE_ACTION:
+  - destroy the artifact
+  - corrupt the ritual
+  - replace components
+  - mislead the cultists
+  - warn the targets
+  - steal key items
+  - sabotage the site
+  - infiltrate and report
+
+SCHOLAR_TYPE:
+  - elderly sage
+  - eager archaeologist
+  - obsessed historian
+  - mystical seer
+  - retired adventurer
+  - eccentric collector
+  - learned priest
+  - foreign explorer
+
+LEGENDARY_ITEM:
+  - lost crown
+  - hero's weapon
+  - divine artifact
+  - ancient tome
+  - magical key
+  - dragon's hoard
+  - immortality elixir
+  - world-shaping relic
+
+LOST_LOCATION:
+  - sunken city
+  - floating temple
+  - hidden valley
+  - sealed tomb
+  - forgotten realm
+  - ancient library
+  - titan's fortress
+  - celestial observatory
+
+SPECIAL_KNOWLEDGE:
+  - ancient languages
+  - star navigation
+  - divine favor
+  - bloodline heritage
+  - secret passwords
+  - mystic rituals
+  - historical lore
+  - puzzle solving
+
+ANCIENT_GUARDIAN:
+  - undead champion
+  - bound elemental
+  - mechanical golem
+  - spectral dragon
+  - living statue
+  - maze of traps
+  - cursed spirits
+  - time distortion
+
+EVENT_NAME:
+  - Grand Tournament
+  - Harvest Festival
+  - Royal Games
+  - Mage Trials
+  - Trade Fair
+  - Fighting Pit
+  - Racing Championship
+  - Bardic Competition
+
+GRAND_PRIZE:
+  - thousand gold coins
+  - magical weapon
+  - noble title
+  - land grant
+  - royal favor
+  - legendary artifact
+  - guild membership
+  - marriage opportunity
+
+SPONSOR:
+  - wealthy merchant
+  - noble house
+  - guild master
+  - religious order
+  - foreign ambassador
+  - retired champion
+  - mysterious patron
+  - royal court
+
+RIVAL:
+  - defending champions
+  - noble's team
+  - foreign delegation
+  - cheating syndicate
+  - legendary competitor
+  - dark horse entry
+  - old enemies
+  - guild rivals
+
+SKILL_TYPE:
+  - martial prowess
+  - magical ability
+  - athletic skill
+  - artistic talent
+  - scholarly knowledge
+  - social grace
+  - tactical genius
+  - survival skills
+
+CHEATING_METHOD:
+  - bribing judges
+  - sabotaging equipment
+  - magical enhancement
+  - poisoning competitors
+  - stealing strategies
+  - intimidation tactics
+  - rule manipulation
+  - foreign assistance
+
+SYMPATHETIC_VILLAIN:
+  - desperate parent
+  - starving orphan
+  - dying elder
+  - enslaved worker
+  - indebted farmer
+  - sick child
+  - war refugee
+  - cursed soul
+
+NEEDED_ITEM:
+  - healing artifact
+  - food supplies
+  - magical component
+  - rare medicine
+  - protection charm
+  - ancient scroll
+  - divine relic
+  - freedom papers
+
+NOBLE_PURPOSE:
+  - save dying child
+  - feed starving village
+  - cure terrible plague
+  - free enslaved people
+  - protect innocents
+  - restore homeland
+  - break family curse
+  - prevent disaster
+
+NEGATIVE_CONSEQUENCE:
+  - innocent dies
+  - village starves
+  - plague spreads
+  - war continues
+  - curse worsens
+  - tyrant triumphs
+  - evil awakens
+  - hope dies
