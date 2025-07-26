@@ -975,7 +975,7 @@ end
 
 def setup_autocomplete(provider_manager, tool_manager, mcp_manager = nil)
   # Define slash commands
-  slash_commands = %w[help model provider models tool tools mcp clear info env]
+  slash_commands = %w[help model provider models tool tools mcp clear info env lsp agent]
   
   # Define providers
   providers = %w[ollama openai anthropic bedrock gemini mistral perplexity]
@@ -983,67 +983,111 @@ def setup_autocomplete(provider_manager, tool_manager, mcp_manager = nil)
   # Get available models (cached for performance)
   models = []
   begin
-    models = provider_manager.list_models
+    models = provider_manager.list_models || []
+    # Add some default models if list is empty
+    if models.empty?
+      models = %w[cogito:latest llama3:latest codellama:latest mistral:latest]
+    end
   rescue => e
-    # Silently fail if models can't be fetched
+    # Fallback to default models if can't be fetched
+    models = %w[cogito:latest llama3:latest codellama:latest mistral:latest]
   end
   
   # Get available tools
-  tools = tool_manager.list_available_tools
+  tools = []
+  begin
+    tools = tool_manager.list_available_tools || []
+  rescue => e
+    # Fallback to basic tools
+    tools = %w[bash cat ls pwd git write_file edit_file create_file delete_file mkdir find]
+  end
   
   # Get MCP subcommands
   mcp_subcommands = %w[status health reload tools]
   
+  # Get LSP subcommands
+  lsp_subcommands = %w[start stop restart status analyze format]
+  
+  # Get agent subcommands
+  agent_subcommands = %w[plan execute report history]
+  
   # Completion proc
   comp = proc do |input|
-    completions = []
-    
-    # Handle slash commands
-    if input.start_with?('/')
-      # Extract command and args
-      parts = input[1..-1].split(' ', 2)
-      command = parts[0] || ''
-      args = parts[1] || ''
+    begin
+      completions = []
       
-      if parts.length == 1
-        # Complete slash command itself
-        completions = slash_commands.select { |cmd| cmd.start_with?(command) }.map { |cmd| "/#{cmd}" }
-      else
-        # Complete command arguments
-        case command
-        when 'provider'
-          if args.split(' ').length == 1
-            completions = providers.select { |p| p.start_with?(args) }.map { |p| "/provider #{p}" }
-          elsif args.split(' ').length == 2
-            provider_name = args.split(' ')[0]
-            model_start = args.split(' ')[1]
-            completions = models.select { |m| m.start_with?(model_start) }.map { |m| "/provider #{provider_name} #{m}" }
-          end
-        when 'model'
-          completions = models.select { |m| m.start_with?(args) }.map { |m| "/model #{m}" }
-        when 'tool'
-          if args.split(' ', 2).length == 1
-            completions = tools.select { |t| t.start_with?(args) }.map { |t| "/tool #{t}" }
-          else
-            tool_name = args.split(' ', 2)[0]
-            file_arg = args.split(' ', 2)[1]
-            # For file-based tools, complete file paths
-            if %w[cat write_file edit_file create_file delete_file].include?(tool_name)
-              completions = Dir.glob("#{file_arg}*").map { |f| "/tool #{tool_name} #{f}" }
+      # Safely handle input
+      return [] if input.nil? || input.empty?
+      
+      # Handle slash commands
+      if input.start_with?('/')
+        # Extract command and args
+        parts = input[1..-1].split(' ', 2)
+        command = parts[0] || ''
+        args = parts[1] || ''
+        
+        if parts.length == 1
+          # Complete slash command itself
+          completions = slash_commands.select { |cmd| cmd.start_with?(command) }.map { |cmd| "/#{cmd}" }
+        else
+          # Complete command arguments
+          case command
+          when 'provider'
+            if args.split(' ').length == 1
+              completions = providers.select { |p| p.start_with?(args) }.map { |p| "/provider #{p}" }
+            elsif args.split(' ').length == 2
+              provider_name = args.split(' ')[0]
+              model_start = args.split(' ')[1]
+              completions = models.select { |m| m.start_with?(model_start) }.map { |m| "/provider #{provider_name} #{m}" }
+            end
+          when 'model'
+            completions = models.select { |m| m.start_with?(args) }.map { |m| "/model #{m}" }
+          when 'tool'
+            if args.split(' ', 2).length == 1
+              completions = tools.select { |t| t.start_with?(args) }.map { |t| "/tool #{t}" }
+            else
+              tool_name = args.split(' ', 2)[0]
+              file_arg = args.split(' ', 2)[1] || ''
+              # For file-based tools, complete file paths
+              if %w[cat write_file edit_file create_file delete_file].include?(tool_name)
+                begin
+                  completions = Dir.glob("#{file_arg}*").map { |f| "/tool #{tool_name} #{f}" }
+                rescue => e
+                  # If glob fails, return empty array
+                  completions = []
+                end
+              end
+            end
+          when 'mcp'
+            if mcp_manager && args.split(' ').length == 1
+              completions = mcp_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/mcp #{sub}" }
+            end
+          when 'lsp'
+            if args.split(' ').length == 1
+              completions = lsp_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/lsp #{sub}" }
+            end
+          when 'agent'
+            if args.split(' ').length == 1
+              completions = agent_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/agent #{sub}" }
             end
           end
-        when 'mcp'
-          if mcp_manager && args.split(' ').length == 1
-            completions = mcp_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/mcp #{sub}" }
-          end
+        end
+      else
+        # Non-slash command completions (file paths)
+        begin
+          completions = Dir.glob("#{input}*").select { |f| File.file?(f) || File.directory?(f) }
+        rescue => e
+          # If glob fails, return empty array
+          completions = []
         end
       end
-    else
-      # Non-slash command completions (file paths)
-      completions = Dir.glob("#{input}*")
+      
+      # Ensure we always return an array
+      completions || []
+    rescue => e
+      # If anything goes wrong, return empty array to prevent crashes
+      []
     end
-    
-    completions
   end
   
   Readline.completion_proc = comp
