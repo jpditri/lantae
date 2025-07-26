@@ -26,6 +26,7 @@ Lantae provides a unified interface to interact with various Large Language Mode
 - **Planning Mode**: Force detailed task breakdown for complex requests
 - **Colored Output**: ANSI color support for better readability
 - **Mode Indicators**: Visual feedback for active features
+- **Tab Autocomplete**: Smart command and argument completion in REPL
 
 ### 🛠️ **Available Tools**
 - File operations: `cat`, `write_file`, `edit_file`, `create_file`, `delete_file`, `mkdir`
@@ -134,6 +135,36 @@ Once in the REPL, use these slash commands:
 | `/clear` | Clear conversation history |
 | `/info` | Show current provider/model |
 | `/env` | Check environment variables |
+
+### Tab Autocomplete
+
+Both Ruby and JavaScript CLIs support intelligent tab completion for faster and more accurate command entry:
+
+**Supported Completions:**
+- **Slash Commands**: Type `/` and press TAB to see available commands
+- **Models**: When using `/model` or `/provider`, TAB completes available model names
+- **Providers**: TAB complete provider names with `/provider` command
+- **Tools**: TAB complete tool names with `/tool` command
+- **File Paths**: Smart file path completion for:
+  - File-based tool arguments (`/tool cat [TAB]`)
+  - General file paths in conversation
+- **Multi-level Completion**: Context-aware completions like `/provider openai [TAB]` for models
+
+**Usage Examples:**
+```bash
+# Complete commands
+> /he[TAB]     → /help
+
+# Complete models
+> /model qw[TAB]     → /model qwq:32b
+
+# Complete file paths
+> /tool cat RE[TAB]  → /tool cat README.md
+
+# Complete provider and model
+> /provider open[TAB]       → /provider openai
+> /provider openai gpt[TAB] → /provider openai gpt-4o
+```
 
 ## 🔧 Configuration
 

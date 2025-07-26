@@ -1117,6 +1117,112 @@ function printBanner() {
 \x1b[0m`);
 }
 
+function createCompleter(providerManager, toolManager) {
+  // Define slash commands
+  const slashCommands = ['help', 'model', 'provider', 'models', 'tool', 'tools', 'clear', 'info', 'env'];
+  
+  // Define providers
+  const providers = ['ollama', 'openai', 'anthropic', 'bedrock', 'gemini', 'mistral', 'perplexity'];
+  
+  // Get available models (cached for performance)
+  let models = [];
+  providerManager.listModels().then(m => models = m).catch(() => {});
+  
+  // Get available tools
+  const tools = toolManager.listAvailableTools();
+  
+  return function(line) {
+    const completions = [];
+    
+    // Handle slash commands
+    if (line.startsWith('/')) {
+      const parts = line.slice(1).split(' ');
+      const command = parts[0] || '';
+      const args = parts.slice(1).join(' ');
+      
+      if (parts.length === 1) {
+        // Complete slash command itself
+        slashCommands.forEach(cmd => {
+          if (cmd.startsWith(command)) {
+            completions.push('/' + cmd);
+          }
+        });
+      } else {
+        // Complete command arguments
+        switch (command) {
+          case 'provider':
+            if (parts.length === 2) {
+              providers.forEach(p => {
+                if (p.startsWith(args)) {
+                  completions.push(`/provider ${p}`);
+                }
+              });
+            } else if (parts.length === 3) {
+              const providerName = parts[1];
+              const modelStart = parts[2];
+              models.forEach(m => {
+                if (m.startsWith(modelStart)) {
+                  completions.push(`/provider ${providerName} ${m}`);
+                }
+              });
+            }
+            break;
+          case 'model':
+            models.forEach(m => {
+              if (m.startsWith(args)) {
+                completions.push(`/model ${m}`);
+              }
+            });
+            break;
+          case 'tool':
+            const toolParts = args.split(' ', 2);
+            if (toolParts.length === 1) {
+              tools.forEach(t => {
+                if (t.startsWith(args)) {
+                  completions.push(`/tool ${t}`);
+                }
+              });
+            } else {
+              const toolName = toolParts[0];
+              const fileArg = toolParts[1];
+              // For file-based tools, complete file paths
+              if (['cat', 'write_file', 'edit_file', 'create_file', 'delete_file'].includes(toolName)) {
+                try {
+                  const files = fs.readdirSync(path.dirname(fileArg || '.'));
+                  files.forEach(file => {
+                    const fullPath = path.join(path.dirname(fileArg || '.'), file);
+                    if (fullPath.startsWith(fileArg || '')) {
+                      completions.push(`/tool ${toolName} ${fullPath}`);
+                    }
+                  });
+                } catch (e) {
+                  // Ignore errors
+                }
+              }
+            }
+            break;
+        }
+      }
+    } else {
+      // Non-slash command completions (file paths)
+      try {
+        const dir = path.dirname(line || '.');
+        const basename = path.basename(line || '');
+        const files = fs.readdirSync(dir);
+        files.forEach(file => {
+          if (file.startsWith(basename)) {
+            completions.push(path.join(dir, file));
+          }
+        });
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+    
+    return [completions, line];
+  };
+}
+
 async function startREPL(options) {
   const secretManager = new SecretManager(options.region, options.secret);
   const toolManager = new ToolManager();
@@ -1163,7 +1269,8 @@ async function startREPL(options) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: '> '
+    prompt: '> ',
+    completer: createCompleter(providerManager, toolManager)
   });
 
   rl.prompt();

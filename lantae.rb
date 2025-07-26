@@ -820,6 +820,83 @@ def print_banner
   BANNER
 end
 
+def setup_autocomplete(provider_manager, tool_manager, mcp_manager = nil)
+  # Define slash commands
+  slash_commands = %w[help model provider models tool tools mcp clear info env]
+  
+  # Define providers
+  providers = %w[ollama openai anthropic bedrock gemini mistral perplexity]
+  
+  # Get available models (cached for performance)
+  models = []
+  begin
+    models = provider_manager.list_models
+  rescue => e
+    # Silently fail if models can't be fetched
+  end
+  
+  # Get available tools
+  tools = tool_manager.list_available_tools
+  
+  # Get MCP subcommands
+  mcp_subcommands = %w[status health reload tools]
+  
+  # Completion proc
+  comp = proc do |input|
+    completions = []
+    
+    # Handle slash commands
+    if input.start_with?('/')
+      # Extract command and args
+      parts = input[1..-1].split(' ', 2)
+      command = parts[0] || ''
+      args = parts[1] || ''
+      
+      if parts.length == 1
+        # Complete slash command itself
+        completions = slash_commands.select { |cmd| cmd.start_with?(command) }.map { |cmd| "/#{cmd}" }
+      else
+        # Complete command arguments
+        case command
+        when 'provider'
+          if args.split(' ').length == 1
+            completions = providers.select { |p| p.start_with?(args) }.map { |p| "/provider #{p}" }
+          elsif args.split(' ').length == 2
+            provider_name = args.split(' ')[0]
+            model_start = args.split(' ')[1]
+            completions = models.select { |m| m.start_with?(model_start) }.map { |m| "/provider #{provider_name} #{m}" }
+          end
+        when 'model'
+          completions = models.select { |m| m.start_with?(args) }.map { |m| "/model #{m}" }
+        when 'tool'
+          if args.split(' ', 2).length == 1
+            completions = tools.select { |t| t.start_with?(args) }.map { |t| "/tool #{t}" }
+          else
+            tool_name = args.split(' ', 2)[0]
+            file_arg = args.split(' ', 2)[1]
+            # For file-based tools, complete file paths
+            if %w[cat write_file edit_file create_file delete_file].include?(tool_name)
+              completions = Dir.glob("#{file_arg}*").map { |f| "/tool #{tool_name} #{f}" }
+            end
+          end
+        when 'mcp'
+          if mcp_manager && args.split(' ').length == 1
+            completions = mcp_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/mcp #{sub}" }
+          end
+        end
+      end
+    else
+      # Non-slash command completions (file paths)
+      completions = Dir.glob("#{input}*")
+    end
+    
+    completions
+  end
+  
+  Readline.completion_proc = comp
+  Readline.completion_append_character = ' '
+end
+
 def start_repl(options)
   secret_manager = SecretManager.new(options[:region], options[:secret])
   
@@ -872,6 +949,9 @@ def start_repl(options)
   rescue => e
     puts "Error checking models: #{e.message}"
   end
+  
+  # Set up autocomplete
+  setup_autocomplete(provider_manager, tool_manager, mcp_manager)
 
   loop do
     begin
