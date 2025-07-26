@@ -9,6 +9,11 @@
 
 (defpackage :lantae-config
   (:use :cl)
+  (:import-from :lantae-utils
+                #:split-string
+                #:merge-plists
+                #:format-time-string
+                #:parse-value)
   (:export #:*config*
            #:load-config
            #:get-config
@@ -34,13 +39,10 @@
 (defvar *config-file* nil
   "Currently loaded configuration file")
 
-;;; String utilities
-(defun split-string (string delimiter)
-  "Split string by delimiter character"
-  (loop for i = 0 then (1+ j)
-        as j = (position delimiter string :start i)
-        collect (subseq string i j)
-        while j))
+;;; Forward declarations for functions used before definition
+(declaim (ftype (function (t t) t) notify-watchers))
+(declaim (ftype (function () t) find-config-file setup-environment-overrides))
+(declaim (ftype (function (t) t) config-valid-p parse-env-value))
 
 ;;; Configuration access utilities
 (defun get-config (key &optional default)
@@ -95,7 +97,77 @@
   (setf *config* (merge-plists *config* new-config))
   (notify-watchers :config-merged new-config))
 
+;;; Configuration watching
+(defun watch-config (pattern callback)
+  "Register a configuration change watcher"
+  (let ((watcher (list pattern callback)))
+    (push watcher *config-watchers*)
+    watcher))
+
+(defun unwatch-config (watcher)
+  "Unregister a configuration watcher"
+  (setf *config-watchers* (remove watcher *config-watchers*)))
+
+(defun notify-watchers (key value)
+  "Notify all matching watchers of configuration change"
+  (dolist (watcher *config-watchers*)
+    (let ((pattern (first watcher))
+          (callback (second watcher)))
+      (when (or (null pattern)
+                (eq pattern key)
+                (and (stringp pattern) (stringp key) (search pattern key)))
+        (handler-case
+            (funcall callback key value)
+          (error (e)
+            (format t "Config watcher error: ~A~%" e)))))))
+
 ;;; Configuration file operations
+(defun find-config-file ()
+  "Find configuration file in standard locations"
+  (let ((possible-files
+         (list "lantae.lisp"
+               "config/lantae.lisp"
+               (merge-pathnames ".lantae/config.lisp" (user-homedir-pathname))
+               "/etc/lantae/config.lisp")))
+    (find-if #'probe-file possible-files)))
+
+(defun config-valid-p (config)
+  "Check if configuration is valid S-expression format"
+  (and (listp config)
+       (evenp (length config))
+       (every (lambda (item) (keywordp item))
+               (loop for i from 0 below (length config) by 2
+                     collect (nth i config)))))
+
+(defun parse-env-value (value)
+  "Parse environment variable value to appropriate type"
+  (cond
+    ((string-equal value "true") t)
+    ((string-equal value "false") nil)
+    ((string-equal value "nil") nil)
+    ((every #'digit-char-p value) (parse-integer value))
+    ((and (find #\. value)
+          (every (lambda (c) (or (digit-char-p c) (char= c #\.))) value))
+     (read-from-string value))
+    (t value)))
+
+(defun setup-environment-overrides ()
+  "Override configuration with environment variables"
+  (let ((env-mappings
+         '(("LANTAE_MODEL" . :model)
+           ("LANTAE_PROVIDER" . :provider)
+           ("LANTAE_TEMPERATURE" . :temperature)
+           ("LANTAE_AUTO_ACCEPT" . :auto-accept)
+           ("LANTAE_ENABLE_MCP" . :enable-mcp)
+           ("LANTAE_ENABLE_LSP" . :enable-lsp)
+           ("AWS_REGION" . :region))))
+    
+    (dolist (mapping env-mappings)
+      (let ((env-value #+sbcl (sb-ext:posix-getenv (car mapping))
+                       #-sbcl nil))
+        (when env-value
+          (set-config (cdr mapping) (parse-env-value env-value)))))))
+
 (defun load-config (&optional config-file)
   "Load configuration from file"
   (let ((file (or config-file (find-config-file))))
@@ -136,57 +208,10 @@
         (notify-watchers :config-reloaded (list :old old-config :new *config*))
         t))))
 
-;;; Configuration discovery
-(defun find-config-file ()
-  "Find configuration file in standard locations"
-  (let ((possible-files
-         (list "lantae.lisp"
-               "config/lantae.lisp"
-               (merge-pathnames ".lantae/config.lisp" (user-homedir-pathname))
-               "/etc/lantae/config.lisp")))
-    (find-if #'probe-file possible-files)))
-
-;;; Environment variable integration
-(defun setup-environment-overrides ()
-  "Override configuration with environment variables"
-  (let ((env-mappings
-         '(("LANTAE_MODEL" . :model)
-           ("LANTAE_PROVIDER" . :provider)
-           ("LANTAE_TEMPERATURE" . :temperature)
-           ("LANTAE_AUTO_ACCEPT" . :auto-accept)
-           ("LANTAE_ENABLE_MCP" . :enable-mcp)
-           ("LANTAE_ENABLE_LSP" . :enable-lsp)
-           ("AWS_REGION" . :region))))
-    
-    (dolist (mapping env-mappings)
-      (let ((env-value #+sbcl (sb-ext:posix-getenv (car mapping))
-                       #-sbcl nil))
-        (when env-value
-          (set-config (cdr mapping) (parse-env-value env-value)))))))
-
-(defun parse-env-value (value)
-  "Parse environment variable value to appropriate type"
-  (cond
-    ((string-equal value "true") t)
-    ((string-equal value "false") nil)
-    ((string-equal value "nil") nil)
-    ((every #'digit-char-p value) (parse-integer value))
-    ((and (find #\. value)
-          (every (lambda (c) (or (digit-char-p c) (char= c #\.))) value))
-     (read-from-string value))
-    (t value)))
-
 ;;; Configuration validation
-(defun config-valid-p (config)
-  "Check if configuration is valid S-expression format"
-  (and (listp config)
-       (evenp (length config))
-       (every (lambda (item) (keywordp item))
-               (loop for i from 0 below (length config) by 2
-                     collect (nth i config)))))
-
 (defun validate-config (&optional (config *config*))
   "Validate current configuration"
+  (declare (ignore config))
   (let ((errors '()))
     
     ;; Check required fields
@@ -214,45 +239,6 @@
     (if errors
         (values nil errors)
         (values t nil))))
-
-;;; Configuration watching
-(defun watch-config (pattern callback)
-  "Register a configuration change watcher"
-  (let ((watcher (list pattern callback)))
-    (push watcher *config-watchers*)
-    watcher))
-
-(defun unwatch-config (watcher)
-  "Unregister a configuration watcher"
-  (setf *config-watchers* (remove watcher *config-watchers*)))
-
-(defun notify-watchers (key value)
-  "Notify all matching watchers of configuration change"
-  (dolist (watcher *config-watchers*)
-    (let ((pattern (first watcher))
-          (callback (second watcher)))
-      (when (or (null pattern)
-                (eq pattern key)
-                (and (stringp pattern) (stringp key) (search pattern key)))
-        (handler-case
-            (funcall callback key value)
-          (error (e)
-            (format t "Config watcher error: ~A~%" e)))))))
-
-;;; Utility functions
-(defun merge-plists (plist1 plist2)
-  "Merge two property lists, with plist2 taking precedence"
-  (let ((result (copy-list plist1)))
-    (loop for (key value) on plist2 by #'cddr
-          do (setf (getf result key) value))
-    result))
-
-(defun format-time-string ()
-  "Format current time as string"
-  (multiple-value-bind (sec min hour date month year)
-      (get-decoded-time)
-    (format nil "~4,'0D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"
-            year month date hour min sec)))
 
 ;;; Configuration macros
 (defmacro defconfig (name value &optional documentation)
@@ -297,24 +283,46 @@
                :enable-audit-log nil
                :audit-log-path "logs/audit.log")))
 
-(defun minimal-config ()
-  "Return minimal configuration"
-  '(:model "cogito:latest"
-    :provider "ollama"
-    :temperature 0.1))
-
-;;; Export interface
 (defun config-to-plist ()
-  "Export current configuration as property list"
+  "Convert current configuration to property list"
   (copy-list *config*))
 
 (defun config-from-plist (plist)
   "Load configuration from property list"
   (when (config-valid-p plist)
     (setf *config* (copy-list plist))
-    (notify-watchers :config-loaded-from-plist plist)
     t))
 
-;;; Initialize with default configuration
-(unless *config*
-  (setf *config* (default-config)))
+;;; Example configuration file format
+(defun generate-example-config ()
+  "Generate example configuration file"
+  '(:model "cogito:latest"
+    :provider "ollama"
+    :url "http://localhost:11434"
+    :temperature 0.1
+    :auto-accept nil
+    :planning-mode nil
+    :agent-mode nil
+    :no-banner nil
+    :enable-mcp nil
+    :enable-lsp nil
+    :max-retries 3
+    :retry-delay 1.0
+    :performance (:enable-caching t
+                  :cache-ttl 300
+                  :enable-pooling t
+                  :pool-size 5
+                  :request-timeout 30)
+    :security (:enable-rate-limiting t
+               :requests-per-minute 60
+               :enable-audit-log nil
+               :audit-log-path "logs/audit.log")
+    :providers ((:name "ollama"
+                 :url "http://localhost:11434"
+                 :models ("cogito:latest" "llama2:latest" "mistral:latest"))
+                (:name "openai"
+                 :api-key-env "OPENAI_API_KEY"
+                 :models ("gpt-4" "gpt-3.5-turbo"))
+                (:name "anthropic"
+                 :api-key-env "ANTHROPIC_API_KEY"
+                 :models ("claude-3-opus" "claude-3-sonnet")))))

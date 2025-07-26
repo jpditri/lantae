@@ -16,15 +16,23 @@ if [ $# -gt 0 ]; then
         ARGS="$ARGS \"$arg\""
     done
     
-    exec sbcl --noinform --disable-debugger --load "$LISP_DIR/lantae.lisp" \
+    exec sbcl --noinform --disable-debugger \
+              --load "$LISP_DIR/src/utils/utils.lisp" \
               --load "$LISP_DIR/src/config/config.lisp" \
               --load "$LISP_DIR/src/providers/providers.lisp" \
               --load "$LISP_DIR/src/cli/commands.lisp" \
+              --load "$LISP_DIR/lantae.lisp" \
               --eval "(in-package :lantae)" \
               --eval "(handler-case (progn (main (list $ARGS)) (sb-ext:exit :code 0)) (error (e) (format *error-output* \"Error: ~A~%\" e) (sb-ext:exit :code 1)))" \
               --quit
 else
     # Interactive mode - start REPL
     cd "$LISP_DIR"
-    exec sbcl --load "run-interactive.lisp"
+    exec sbcl --load "src/utils/utils.lisp" \
+              --load "src/config/config.lisp" \
+              --load "src/providers/providers.lisp" \
+              --load "src/cli/commands.lisp" \
+              --load "lantae.lisp" \
+              --eval "(in-package :lantae)" \
+              --eval "(start-repl)"
 fi

@@ -1,89 +1,87 @@
-;;;; providers.lisp - Provider abstraction layer for Lantae LISP
-;;;; 
-;;;; Functional programming approach to multi-provider LLM abstraction
-;;;; Features:
-;;;; - Pure functional provider interface
-;;;; - Higher-order functions for provider composition
-;;;; - Monadic error handling
-;;;; - Protocol-based dispatch
+;;;; providers.lisp - Functional provider abstraction layer
+;;;;
+;;;; This module implements:
+;;;; - Provider protocol using higher-order functions
+;;;; - Monadic error handling for API calls
+;;;; - Provider composition and chaining
+;;;; - Retry logic with exponential backoff
+;;;; - Streaming response handling
 
 (defpackage :lantae-providers
   (:use :cl)
-  (:export #:initialize-providers
-           #:make-provider
-           #:call-provider
-           #:list-provider-models
-           #:get-provider
+  (:export #:*provider-registry*
            #:register-provider
-           #:*provider-registry*
+           #:get-provider
+           #:list-providers
+           #:provider-chat
+           #:provider-stream
+           #:provider-models
+           #:create-provider
            #:with-provider
-           #:provider-compose
-           #:provider-retry
-           #:provider-fallback))
+           #:initialize-providers
+           #:list-provider-models))
 
 (in-package :lantae-providers)
 
-;;; Provider protocol definition
-(defgeneric provider-chat (provider model messages &key &allow-other-keys)
-  (:documentation "Send chat messages to provider"))
-
-(defgeneric provider-list-models (provider)
-  (:documentation "List available models for provider"))
-
-(defgeneric provider-health-check (provider)
-  (:documentation "Check provider health status"))
-
-(defgeneric provider-capabilities (provider)
-  (:documentation "Get provider capabilities"))
-
 ;;; Provider registry
 (defvar *provider-registry* (make-hash-table :test 'equal)
-  "Global provider registry")
+  "Registry of available providers")
 
-;;; Provider structure
-(defstruct (provider (:constructor make-provider-internal))
+(defvar *current-provider* nil
+  "Currently active provider")
+
+;;; Provider protocol
+(defstruct provider
+  "Provider structure using functional approach"
   name
   chat-fn
-  list-models-fn
-  health-check-fn
-  capabilities-fn
+  stream-fn
+  models-fn
   config)
 
-;;; Provider constructor with validation
-(defun make-provider (name &key chat-fn list-models-fn health-check-fn capabilities-fn config)
-  "Create a new provider with validation"
-  (assert (stringp name) (name) "Provider name must be a string")
-  (assert (functionp chat-fn) (chat-fn) "Chat function must be provided")
-  (assert (functionp list-models-fn) (list-models-fn) "List models function must be provided")
-  
-  (make-provider-internal
-   :name name
-   :chat-fn chat-fn
-   :list-models-fn list-models-fn
-   :health-check-fn (or health-check-fn (lambda () '(:status :unknown)))
-   :capabilities-fn (or capabilities-fn (lambda () '(:streaming nil :tools nil)))
-   :config (or config '())))
+;;; Result monad for error handling
+(defstruct result
+  success-p
+  value
+  error)
 
-;;; Provider methods implementation
-(defmethod provider-chat ((provider provider) model messages &key &allow-other-keys)
-  (funcall (provider-chat-fn provider) model messages))
+(defun success (value)
+  "Create successful result"
+  (make-result :success-p t :value value))
 
-(defmethod provider-list-models ((provider provider))
-  (funcall (provider-list-models-fn provider)))
+(defun failure (error)
+  "Create failure result"
+  (make-result :success-p nil :error error))
 
-(defmethod provider-health-check ((provider provider))
-  (funcall (provider-health-check-fn provider)))
+(defmacro result-bind (result var &body body)
+  "Monadic bind for result type"
+  `(if (result-success-p ,result)
+       (let ((,var (result-value ,result)))
+         ,@body)
+       ,result))
 
-(defmethod provider-capabilities ((provider provider))
-  (funcall (provider-capabilities-fn provider)))
+(defmacro result-let* (bindings &body body)
+  "Multiple monadic binds"
+  (if (null bindings)
+      `(progn ,@body)
+      `(result-bind ,(second (first bindings)) ,(first (first bindings))
+         (result-let* ,(rest bindings)
+           ,@body))))
 
-;;; Registry operations
+;;; Forward declarations
+(declaim (ftype (function (&key (:api-key t)) t) make-openai-provider make-anthropic-provider))
+(declaim (ftype (function (&key (:base-url t)) t) make-ollama-provider))
+(declaim (ftype (function (t t t t) t) ollama-chat openai-chat anthropic-chat))
+(declaim (ftype (function (t) t) ollama-list-models get-secret-key))
+(declaim (ftype (function () t) openai-list-models anthropic-list-models))
+
+;;; Provider registry functions
 (defun register-provider (provider)
-  "Register a provider in the global registry"
+  "Register a provider in the registry"
   (setf (gethash (provider-name provider) *provider-registry*) provider))
 
 (defun get-provider (name)
-  "Get provider by name from registry"
+  "Get provider by name"
   (gethash name *provider-registry*))
 
 (defun list-providers ()
@@ -91,147 +89,118 @@
   (loop for name being the hash-keys of *provider-registry*
         collect name))
 
-;;; High-level provider interface
-(defun call-provider (provider-name model messages &rest options)
-  "Call provider with error handling"
+;;; Provider operations
+(defun provider-chat (provider-name model messages &key (temperature 0.1))
+  "Send chat request to provider"
   (let ((provider (get-provider provider-name)))
-    (unless provider
-      (error "Provider ~A not found" provider-name))
-    
-    (handler-case
-        (apply #'provider-chat provider model messages options)
-      (error (e)
-        (format t "Provider ~A error: ~A~%" provider-name e)
-        nil))))
+    (if provider
+        (funcall (provider-chat-fn provider) model messages temperature)
+        (failure (format nil "Provider ~A not found" provider-name)))))
+
+(defun provider-stream (provider-name model messages &key (temperature 0.1) callback)
+  "Stream chat response from provider"
+  (let ((provider (get-provider provider-name)))
+    (if provider
+        (if (provider-stream-fn provider)
+            (funcall (provider-stream-fn provider) model messages temperature callback)
+            (failure "Provider does not support streaming"))
+        (failure (format nil "Provider ~A not found" provider-name)))))
+
+(defun provider-models (provider-name)
+  "List available models for provider"
+  (let ((provider (get-provider provider-name)))
+    (if provider
+        (funcall (provider-models-fn provider))
+        (failure (format nil "Provider ~A not found" provider-name)))))
 
 (defun list-provider-models (provider-name)
-  "List models for provider with error handling"
-  (let ((provider (get-provider provider-name)))
-    (unless provider
-      (error "Provider ~A not found" provider-name))
-    
-    (handler-case
-        (provider-list-models provider)
-      (error (e)
-        (format t "Failed to list models for ~A: ~A~%" provider-name e)
-        '()))))
+  "Get list of models for a provider"
+  (let ((result (provider-models provider-name)))
+    (if (result-success-p result)
+        (result-value result)
+        nil)))
 
-;;; Higher-order provider functions
+;;; Provider creation helpers
+(defun create-provider (&key name chat-fn stream-fn models-fn config)
+  "Create a new provider structure"
+  (make-provider :name name
+                 :chat-fn chat-fn
+                 :stream-fn stream-fn
+                 :models-fn models-fn
+                 :config config))
+
 (defmacro with-provider (provider-name &body body)
-  "Execute body with provider bound to *current-provider*"
+  "Execute body with specified provider as current"
   `(let ((*current-provider* (get-provider ,provider-name)))
-     (unless *current-provider*
-       (error "Provider ~A not found" ,provider-name))
      ,@body))
 
-(defun provider-compose (&rest provider-names)
-  "Compose multiple providers into a single function"
-  (lambda (model messages &rest options)
-    (loop for name in provider-names
-          for result = (apply #'call-provider name model messages options)
-          when result return result
-          finally (error "All providers failed"))))
+;;; Retry logic
+(defun with-retry (fn &key (max-retries 3) (initial-delay 1))
+  "Execute function with exponential backoff retry"
+  (labels ((try-once (attempt delay)
+             (handler-case
+                 (funcall fn)
+               (error (e)
+                 (if (< attempt max-retries)
+                     (progn
+                       (format t "Attempt ~A failed, retrying in ~A seconds...~%"
+                               attempt delay)
+                       (sleep delay)
+                       (try-once (1+ attempt) (* delay 2)))
+                     (failure (format nil "Failed after ~A attempts: ~A"
+                                    max-retries e)))))))
+    (try-once 1 initial-delay)))
 
-(defun provider-retry (provider-name &key (max-retries 3) (delay 1))
-  "Create a retry wrapper for provider"
-  (lambda (model messages &rest options)
-    (loop repeat max-retries
-          for attempt from 1
-          for result = (handler-case
-                           (apply #'call-provider provider-name model messages options)
-                         (error (e)
-                           (when (< attempt max-retries)
-                             (format t "Attempt ~A failed, retrying in ~A seconds...~%" attempt delay)
-                             (sleep delay))
-                           nil))
-          when result return result
-          finally (error "Provider ~A failed after ~A attempts" provider-name max-retries))))
+(defun provider-retry (provider-fn &key (max-retries 3) (delay 1))
+  "Retry provider function with exponential backoff"
+  (let ((attempt 0))
+    (loop
+      (handler-case
+          (return (funcall provider-fn))
+        (error (e)
+          (incf attempt)
+          (when (>= attempt max-retries)
+            (error e))
+          (format t "Attempt ~A failed, retrying in ~A seconds...~%"
+                  attempt delay)
+          (sleep delay)
+          (setf delay (* delay 2)))))))
 
-(defun provider-fallback (primary-provider fallback-provider)
-  "Create fallback provider chain"
-  (lambda (model messages &rest options)
-    (or (handler-case
-            (apply #'call-provider primary-provider model messages options)
-          (error () nil))
-        (apply #'call-provider fallback-provider model messages options))))
-
-;;; Ollama provider implementation
+;;; Provider implementations
 (defun make-ollama-provider (&key (base-url "http://localhost:11434"))
-  "Create Ollama provider with functional interface"
-  (make-provider
-   "ollama"
-   :chat-fn (lambda (model messages &key (temperature 0.1) &allow-other-keys)
+  "Create Ollama provider"
+  (create-provider
+   :name "ollama"
+   :chat-fn (lambda (model messages temperature)
               (ollama-chat base-url model messages temperature))
-   :list-models-fn (lambda ()
-                     (ollama-list-models base-url))
-   :health-check-fn (lambda ()
-                      (handler-case
-                          (ollama-list-models base-url)
-                        (error () '(:status :unhealthy))
-                        (:no-error (models) `(:status :healthy :models-count ,(length models)))))
-   :capabilities-fn (lambda ()
-                      '(:streaming nil :tools t :max-tokens 8192))
+   :stream-fn nil ; TODO: Implement streaming
+   :models-fn (lambda ()
+                (ollama-list-models base-url))
    :config `(:base-url ,base-url)))
 
-(defun ollama-chat (base-url model messages temperature)
-  "Send chat request to Ollama"
-  ;; This would use a HTTP client library like Drakma
-  ;; For now, a simulation
-  (declare (ignore base-url model messages temperature))
-  "This is a simulated Ollama response. In a real implementation, this would make HTTP requests.")
-
-(defun ollama-list-models (base-url)
-  "List Ollama models"
-  (declare (ignore base-url))
-  '("cogito:latest" "qwq:32b" "llama3.1-intuitive-thinker"))
-
-;;; OpenAI provider implementation
 (defun make-openai-provider (&key api-key)
   "Create OpenAI provider"
-  (make-provider
-   "openai"
-   :chat-fn (lambda (model messages &key (temperature 0.1) &allow-other-keys)
+  (unless api-key
+    (error "OpenAI API key required"))
+  (create-provider
+   :name "openai"
+   :chat-fn (lambda (model messages temperature)
               (openai-chat api-key model messages temperature))
-   :list-models-fn (lambda ()
-                     (openai-list-models))
-   :health-check-fn (lambda ()
-                      '(:status :healthy))
-   :capabilities-fn (lambda ()
-                      '(:streaming t :tools nil :max-tokens 4096))
+   :stream-fn nil ; TODO: Implement streaming
+   :models-fn #'openai-list-models
    :config `(:api-key ,api-key)))
 
-(defun openai-chat (api-key model messages temperature)
-  "Send chat request to OpenAI"
-  (declare (ignore api-key model messages temperature))
-  "This is a simulated OpenAI response.")
-
-(defun openai-list-models ()
-  "List OpenAI models"
-  '("gpt-4o" "gpt-4o-mini" "gpt-4-turbo" "o1-preview" "o1-mini"))
-
-;;; Anthropic provider implementation
 (defun make-anthropic-provider (&key api-key)
   "Create Anthropic provider"
-  (make-provider
-   "anthropic"
-   :chat-fn (lambda (model messages &key (temperature 0.1) &allow-other-keys)
+  (unless api-key
+    (error "Anthropic API key required"))
+  (create-provider
+   :name "anthropic"
+   :chat-fn (lambda (model messages temperature)
               (anthropic-chat api-key model messages temperature))
-   :list-models-fn (lambda ()
-                     (anthropic-list-models))
-   :health-check-fn (lambda ()
-                      '(:status :healthy))
-   :capabilities-fn (lambda ()
-                      '(:streaming t :tools nil :max-tokens 4096))
+   :stream-fn nil ; TODO: Implement streaming
+   :models-fn #'anthropic-list-models
    :config `(:api-key ,api-key)))
-
-(defun anthropic-chat (api-key model messages temperature)
-  "Send chat request to Anthropic"
-  (declare (ignore api-key model messages temperature))
-  "This is a simulated Anthropic response.")
-
-(defun anthropic-list-models ()
-  "List Anthropic models"
-  '("claude-3-5-sonnet-20241022" "claude-3-5-haiku-20241022" "claude-3-opus-20240229"))
 
 ;;; Provider initialization
 (defun initialize-providers ()
@@ -266,81 +235,97 @@
   "Send chat request to Ollama API"
   (declare (ignore base-url model messages temperature))
   ;; Placeholder - would use HTTP client to call Ollama API
-  '(:content "This is a placeholder response from Ollama"))
+  (success '(:content "This is a placeholder response from Ollama")))
 
 (defun ollama-list-models (base-url)
   "List available Ollama models"
   (declare (ignore base-url))
   ;; Placeholder - would fetch from Ollama API
-  '("cogito:latest" "llama2:latest" "mistral:latest"))
+  (success '("cogito:latest" "llama2:latest" "mistral:latest")))
 
 (defun openai-chat (api-key model messages temperature)
   "Send chat request to OpenAI API"
   (declare (ignore api-key model messages temperature))
   ;; Placeholder - would use HTTP client to call OpenAI API
-  '(:content "This is a placeholder response from OpenAI"))
+  (success '(:content "This is a placeholder response from OpenAI")))
 
 (defun openai-list-models ()
   "List available OpenAI models"
   ;; Placeholder - would fetch from OpenAI API
-  '("gpt-4" "gpt-3.5-turbo"))
+  (success '("gpt-4" "gpt-3.5-turbo")))
 
 (defun anthropic-chat (api-key model messages temperature)
   "Send chat request to Anthropic API"
   (declare (ignore api-key model messages temperature))
   ;; Placeholder - would use HTTP client to call Anthropic API
-  '(:content "This is a placeholder response from Anthropic"))
+  (success '(:content "This is a placeholder response from Anthropic")))
 
 (defun anthropic-list-models ()
   "List available Anthropic models"
   ;; Placeholder
-  '("claude-3-opus" "claude-3-sonnet" "claude-3-haiku"))
+  (success '("claude-3-opus" "claude-3-sonnet" "claude-3-haiku")))
 
-;;; Monadic error handling utilities
-(defstruct result
-  success-p
-  value
-  error)
+;;; Provider composition utilities
+(defun chain-providers (providers)
+  "Create a provider that tries each provider in sequence"
+  (create-provider
+   :name "chained"
+   :chat-fn (lambda (model messages temperature)
+              (loop for provider-name in providers
+                    for result = (provider-chat provider-name model messages
+                                               :temperature temperature)
+                    when (result-success-p result)
+                      return result
+                    finally (return (failure "All providers failed"))))
+   :models-fn (lambda ()
+                (success (loop for provider-name in providers
+                               append (list-provider-models provider-name))))))
 
-(defun success (value)
-  "Create a success result"
-  (make-result :success-p t :value value :error nil))
+(defun fallback-provider (primary fallback)
+  "Create a provider with fallback"
+  (create-provider
+   :name (format nil "~A-with-fallback" primary)
+   :chat-fn (lambda (model messages temperature)
+              (let ((result (provider-chat primary model messages
+                                         :temperature temperature)))
+                (if (result-success-p result)
+                    result
+                    (provider-chat fallback model messages
+                                 :temperature temperature))))
+   :models-fn (lambda ()
+                (success (append (list-provider-models primary)
+                               (list-provider-models fallback))))))
 
-(defun failure (error)
-  "Create a failure result"
-  (make-result :success-p nil :value nil :error error))
+;;; Provider middleware
+(defun with-logging (provider-name)
+  "Add logging to provider calls"
+  (let ((provider (get-provider provider-name)))
+    (when provider
+      (create-provider
+       :name (format nil "~A-logged" provider-name)
+       :chat-fn (lambda (model messages temperature)
+                  (format t "Calling ~A with model ~A~%" provider-name model)
+                  (let ((result (funcall (provider-chat-fn provider)
+                                       model messages temperature)))
+                    (format t "Result: ~A~%" (if (result-success-p result)
+                                               "Success" "Failure"))
+                    result))
+       :models-fn (provider-models-fn provider)))))
 
-(defun result-bind (result function)
-  "Monadic bind for result type"
-  (if (result-success-p result)
-      (funcall function (result-value result))
-      result))
-
-(defmacro result-let* (bindings &body body)
-  "Monadic let* for result type"
-  (if (null bindings)
-      `(progn ,@body)
-      (let ((binding (first bindings))
-            (rest-bindings (rest bindings)))
-        `(result-bind ,(second binding)
-                      (lambda (,(first binding))
-                        (result-let* ,rest-bindings ,@body))))))
-
-;;; Provider with monadic error handling
-(defun safe-call-provider (provider-name model messages &rest options)
-  "Call provider with monadic error handling"
-  (handler-case
-      (let ((result (apply #'call-provider provider-name model messages options)))
-        (if result
-            (success result)
-            (failure (format nil "Provider ~A returned nil" provider-name))))
-    (error (e)
-      (failure (format nil "Provider ~A error: ~A" provider-name e)))))
-
-;;; Export symbols for external use
-(export '(provider-chat provider-list-models provider-health-check provider-capabilities
-          make-provider register-provider get-provider list-providers
-          call-provider list-provider-models with-provider
-          provider-compose provider-retry provider-fallback
-          safe-call-provider result-bind result-let*
-          success failure result-success-p result-value result-error))
+(defun with-caching (provider-name &key (ttl 300))
+  "Add caching to provider calls"
+  (declare (ignore ttl))
+  (let ((provider (get-provider provider-name))
+        (cache (make-hash-table :test 'equal)))
+    (when provider
+      (create-provider
+       :name (format nil "~A-cached" provider-name)
+       :chat-fn (lambda (model messages temperature)
+                  (let ((cache-key (list model messages temperature)))
+                    (or (gethash cache-key cache)
+                        (let ((result (funcall (provider-chat-fn provider)
+                                             model messages temperature)))
+                          (when (result-success-p result)
+                            (setf (gethash cache-key cache) result))
+                          result))))
+       :models-fn (provider-models-fn provider)))))

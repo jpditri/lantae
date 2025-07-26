@@ -2,11 +2,12 @@
 ;;;; 
 ;;;; Usage: sbcl --load start-repl.lisp
 
-;; Load the main system
-(load "lantae.lisp")
+;; Load the main system in the correct order
+(load "src/utils/utils.lisp")
 (load "src/config/config.lisp")
 (load "src/providers/providers.lisp")
 (load "src/cli/commands.lisp")
+(load "lantae.lisp")
 
 ;; Switch to the main package
 (in-package :lantae)
@@ -17,10 +18,11 @@
 ;; Set up some convenience functions for development
 (defun reload ()
   "Reload all Lantae modules"
-  (load "lantae.lisp")
+  (load "src/utils/utils.lisp")
   (load "src/config/config.lisp")
-  (load "src/providers/providers.lisp")  
+  (load "src/providers/providers.lisp")
   (load "src/cli/commands.lisp")
+  (load "lantae.lisp")
   (format t "Reloaded all modules.~%"))
 
 (defun test-provider ()

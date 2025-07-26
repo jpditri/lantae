@@ -128,6 +128,8 @@ The LISP version implements:
 
 3. **Package errors**: Ensure all files are loaded in the correct order (handled by launcher scripts).
 
+4. **Warning messages**: The LISP version may show compilation warnings on first load. These can be safely ignored or suppressed with `2>/dev/null`.
+
 ### Debug Mode
 
 To enable debug output:
