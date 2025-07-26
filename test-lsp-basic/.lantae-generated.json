@@ -1,0 +1,12 @@
+{
+  "files": [
+    "test.py"
+  ],
+  "snippets": {
+    "test.py": {
+      "tool": "create_file",
+      "language": "python",
+      "timestamp": "2025-07-26T04:19:56.641Z"
+    }
+  }
+}

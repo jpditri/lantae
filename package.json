@@ -7,10 +7,18 @@
     "lantae": "./index.js"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node test-simple.js",
+    "test-full": "node test-lantae-lsp.js",
+    "test-simple": "node test-simple.js",
+    "test-lsp": "node test-lsp-basic.js",
+    "test-coverage": "node test-coverage.js",
+    "coverage": "nyc npm test",
+    "coverage-report": "nyc report --reporter=html",
     "start": "node index.js",
     "setup": "node setup-secrets.js",
-    "setup-secrets": "node setup-secrets.js"
+    "setup-secrets": "node setup-secrets.js",
+    "lsp-server": "node lsp-server.js",
+    "lsp-test": "node lsp-client.js"
   },
   "keywords": [
     "ai",
@@ -34,6 +42,14 @@
     "axios": "^1.11.0",
     "commander": "^14.0.0",
     "fs-extra": "^11.3.0",
-    "openai": "^5.10.2"
+    "openai": "^5.10.2",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.1.0"
+  },
+  "devDependencies": {
+    "@istanbuljs/nyc-config-typescript": "^1.0.2",
+    "c8": "^10.1.3",
+    "nyc": "^17.1.0"
   }
 }

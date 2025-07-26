@@ -6,6 +6,8 @@
 [![Node.js](https://img.shields.io/badge/node.js-18+-green.svg)](https://nodejs.org/)
 
 > **🚀 A powerful CLI/REPL interface for multiple LLM providers with advanced reasoning capabilities**
+>
+> **Special Thanks**: LSP Enhanced features inspired by the Engineer and Founder of [CubicLayer.com](https://cubiclayer.com)
 
 Lantae provides a unified interface to interact with various Large Language Model providers including Ollama, OpenAI, Anthropic, AWS Bedrock, Google Gemini, Mistral, and Perplexity. Built with both Ruby and Node.js implementations for maximum flexibility.
 

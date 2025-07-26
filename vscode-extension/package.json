@@ -1,0 +1,228 @@
+{
+  "name": "lantae-lsp",
+  "displayName": "Lantae Language Server",
+  "description": "AI-powered language server for JavaScript/Node.js development",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "javascript",
+    "nodejs",
+    "ai",
+    "lsp",
+    "language-server"
+  ],
+  "activationEvents": [
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:python",
+    "onLanguage:go",
+    "onLanguage:rust",
+    "onLanguage:java",
+    "onLanguage:cpp",
+    "onLanguage:c",
+    "onLanguage:html",
+    "onLanguage:css",
+    "onLanguage:sql",
+    "onLanguage:shellscript",
+    "onLanguage:yaml",
+    "onLanguage:ruby",
+    "onLanguage:php"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "javascript",
+        "extensions": [".js"],
+        "aliases": ["JavaScript", "javascript", "js"]
+      },
+      {
+        "id": "typescript", 
+        "extensions": [".ts"],
+        "aliases": ["TypeScript", "typescript", "ts"]
+      },
+      {
+        "id": "python",
+        "extensions": [".py"],
+        "aliases": ["Python", "python", "py"]
+      },
+      {
+        "id": "go",
+        "extensions": [".go"],
+        "aliases": ["Go", "golang", "go"]
+      },
+      {
+        "id": "rust",
+        "extensions": [".rs"],
+        "aliases": ["Rust", "rust", "rs"]
+      },
+      {
+        "id": "java",
+        "extensions": [".java"],
+        "aliases": ["Java", "java"]
+      },
+      {
+        "id": "cpp",
+        "extensions": [".cpp", ".cc", ".cxx"],
+        "aliases": ["C++", "cpp", "c++"]
+      },
+      {
+        "id": "c",
+        "extensions": [".c", ".h"],
+        "aliases": ["C", "c"]
+      },
+      {
+        "id": "html",
+        "extensions": [".html", ".htm"],
+        "aliases": ["HTML", "html"]
+      },
+      {
+        "id": "css",
+        "extensions": [".css"],
+        "aliases": ["CSS", "css"]
+      },
+      {
+        "id": "sql",
+        "extensions": [".sql"],
+        "aliases": ["SQL", "sql"]
+      },
+      {
+        "id": "shellscript",
+        "extensions": [".sh", ".bash"],
+        "aliases": ["Shell", "shell", "bash"]
+      },
+      {
+        "id": "yaml",
+        "extensions": [".yaml", ".yml"],
+        "aliases": ["YAML", "yaml"]
+      },
+      {
+        "id": "ruby",
+        "extensions": [".rb"],
+        "aliases": ["Ruby", "ruby", "rb"]
+      },
+      {
+        "id": "php",
+        "extensions": [".php"],
+        "aliases": ["PHP", "php"]
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Lantae LSP Configuration",
+      "properties": {
+        "lantae.maxNumberOfProblems": {
+          "scope": "resource",
+          "type": "number",
+          "default": 1000,
+          "description": "Controls the maximum number of problems produced by the server."
+        },
+        "lantae.aiProvider": {
+          "scope": "resource",
+          "type": "string",
+          "enum": ["ollama", "openai", "anthropic", "bedrock", "gemini"],
+          "default": "ollama",
+          "description": "AI provider to use for enhanced features."
+        },
+        "lantae.aiModel": {
+          "scope": "resource",
+          "type": "string",
+          "default": "cogito:latest",
+          "description": "AI model to use for enhanced features."
+        },
+        "lantae.enableIntelliSense": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable AI-powered IntelliSense features."
+        },
+        "lantae.enableCodeAnalysis": {
+          "scope": "resource",
+          "type": "boolean",
+          "default": true,
+          "description": "Enable static code analysis and diagnostics."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "lantae.analyzeFile",
+        "title": "Analyze Current File",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.optimizeCode",
+        "title": "Optimize Code with AI",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.generateTests",
+        "title": "Generate Tests with AI",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.refactorCode",
+        "title": "Refactor Code with AI",
+        "category": "Lantae"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "resourceExtname in .js,.ts,.py,.go,.rs,.java,.cpp,.c,.html,.css,.sql,.sh,.yaml,.rb,.php",
+          "command": "lantae.analyzeFile",
+          "group": "lantae"
+        },
+        {
+          "when": "resourceExtname in .js,.ts,.py,.go,.rs,.java,.cpp,.c,.html,.css,.sql,.sh,.yaml,.rb,.php", 
+          "command": "lantae.optimizeCode",
+          "group": "lantae"
+        },
+        {
+          "when": "resourceExtname in .js,.ts,.py,.go,.rs,.java,.cpp,.c,.html,.css,.sql,.sh,.yaml,.rb,.php",
+          "command": "lantae.generateTests", 
+          "group": "lantae"
+        },
+        {
+          "when": "resourceExtname in .js,.ts,.py,.go,.rs,.java,.cpp,.c,.html,.css,.sql,.sh,.yaml,.rb,.php",
+          "command": "lantae.refactorCode",
+          "group": "lantae"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "lantae.analyzeFile",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "lantae.optimizeCode", 
+        "key": "ctrl+shift+o",
+        "mac": "cmd+shift+o",
+        "when": "editorTextFocus"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}
