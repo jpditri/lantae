@@ -29,7 +29,7 @@ RSpec.describe 'Qwen Models Integration' do
   end
 
   describe 'model performance testing' do
-    qwen_models.each do |model|
+    ['qwen2.5:1.5b', 'qwen2.5:3b', 'qwen3:14b', 'qwen3:32b'].each do |model|
       context "with #{model}" do
         let(:provider_manager) do
           double('ProviderManager').tap do |pm|
@@ -57,7 +57,7 @@ RSpec.describe 'Qwen Models Integration' do
           end
         end
 
-        let(:agent) { PlanningAgent.new(provider_manager) }
+        let(:agent) { PlanningAgent.new(provider_manager, double('ToolManager')) }
 
         it 'responds to simple tasks' do
           skip "Model #{model} not available" unless model_available?(model)
@@ -132,11 +132,11 @@ RSpec.describe 'Qwen Models Integration' do
         task_description = task_spec[:description]
         results[task_description] = {}
         
-        qwen_models.each do |model|
+        ['qwen2.5:1.5b', 'qwen2.5:3b', 'qwen3:14b', 'qwen3:32b'].each do |model|
           next unless model_available?(model)
           
           provider = create_provider_for_model(model)
-          agent = PlanningAgent.new(provider)
+          agent = PlanningAgent.new(provider, double('ToolManager'))
           
           start_time = Time.now
           begin

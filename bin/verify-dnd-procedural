@@ -1,0 +1,156 @@
+#!/usr/bin/env ruby
+
+require 'json'
+
+puts "🔍 Verifying D&D Procedural Generation Implementation"
+puts "=" * 60
+
+tests = []
+
+# Test 1: Check file existence
+puts "\n1. Checking Core Files"
+puts "-" * 30
+
+core_files = [
+  "../dnd-lantae/lib/ruby/procedural/smart_randomizer.rb",
+  "../dnd-lantae/lib/ruby/procedural/template_engine.rb",
+  "../dnd-lantae/data/word-banks/quest_elements.yml",
+  "../dnd-lantae/bin/npc-generator-procedural",
+  "../dnd-lantae/bin/test-procedural"
+]
+
+core_files.each do |file|
+  exists = File.exist?(file)
+  tests << { name: "File exists: #{file}", passed: exists }
+  puts "  #{exists ? '✅' : '❌'} #{File.basename(file)}"
+end
+
+# Test 2: Load modules
+puts "\n2. Loading Modules"
+puts "-" * 30
+
+begin
+  require_relative '../../dnd-lantae/lib/ruby/procedural/smart_randomizer'
+  tests << { name: "Load SmartRandomizer", passed: true }
+  puts "  ✅ SmartRandomizer loaded"
+rescue => e
+  tests << { name: "Load SmartRandomizer", passed: false, error: e.message }
+  puts "  ❌ SmartRandomizer failed: #{e.message}"
+end
+
+begin
+  require_relative '../../dnd-lantae/lib/ruby/procedural/template_engine'
+  tests << { name: "Load TemplateEngine", passed: true }
+  puts "  ✅ TemplateEngine loaded"
+rescue => e
+  tests << { name: "Load TemplateEngine", passed: false, error: e.message }
+  puts "  ❌ TemplateEngine failed: #{e.message}"
+end
+
+# Test 3: Functionality
+puts "\n3. Testing Functionality"
+puts "-" * 30
+
+# Test SmartRandomizer
+begin
+  randomizer = Procedural::SmartRandomizer.new(%w[a b c d e], memory_size: 2)
+  results = 10.times.map { randomizer.next }
+  unique_count = results.uniq.size
+  
+  passed = unique_count >= 3 # Should use at least 3 different items
+  tests << { name: "SmartRandomizer variety", passed: passed }
+  puts "  #{passed ? '✅' : '❌'} SmartRandomizer generates variety (#{unique_count}/5 items used)"
+rescue => e
+  tests << { name: "SmartRandomizer variety", passed: false, error: e.message }
+  puts "  ❌ SmartRandomizer test failed: #{e.message}"
+end
+
+# Test TemplateEngine
+begin
+  engine = Procedural::TemplateEngine.new
+  engine.load_template('test', 'Hello [NAME], you are [AGE] years old')
+  engine.load_word_bank('NAME', %w[Alice Bob Charlie])
+  engine.load_word_bank('AGE', %w[young old ancient])
+  
+  result = engine.generate('test')
+  passed = result.include?('Hello') && !result.include?('[')
+  
+  tests << { name: "TemplateEngine generation", passed: passed }
+  puts "  #{passed ? '✅' : '❌'} TemplateEngine generates: #{result}"
+rescue => e
+  tests << { name: "TemplateEngine generation", passed: false, error: e.message }
+  puts "  ❌ TemplateEngine test failed: #{e.message}"
+end
+
+# Test 4: NPC Generator
+puts "\n4. Testing NPC Generator"
+puts "-" * 30
+
+begin
+  output = `cd ../dnd-lantae && ./bin/npc-generator-procedural -f json 2>&1`
+  success = $?.success?
+  
+  if success
+    npc = JSON.parse(output)
+    has_required_fields = %w[name profession personality appearance].all? { |f| npc.key?(f) }
+    tests << { name: "NPC Generator output", passed: has_required_fields }
+    puts "  #{has_required_fields ? '✅' : '❌'} NPC Generator creates valid NPCs"
+    puts "    Generated: #{npc['name']} the #{npc['profession']}"
+  else
+    tests << { name: "NPC Generator output", passed: false }
+    puts "  ❌ NPC Generator failed to run"
+  end
+rescue => e
+  tests << { name: "NPC Generator output", passed: false, error: e.message }
+  puts "  ❌ NPC Generator test failed: #{e.message}"
+end
+
+# Summary
+puts "\n" + "=" * 60
+puts "📊 VERIFICATION SUMMARY"
+puts "=" * 60
+
+passed_count = tests.count { |t| t[:passed] }
+total_count = tests.size
+
+puts "\nTests Passed: #{passed_count}/#{total_count}"
+
+if passed_count == total_count
+  puts "\n✅ ALL TESTS PASSED - Procedural generation system is working correctly!"
+else
+  puts "\n❌ SOME TESTS FAILED"
+  puts "\nFailed Tests:"
+  tests.reject { |t| t[:passed] }.each do |test|
+    puts "  - #{test[:name]}"
+    puts "    Error: #{test[:error]}" if test[:error]
+  end
+end
+
+# Performance check
+puts "\n⚡ Performance Check"
+puts "-" * 30
+
+begin
+  require 'benchmark'
+  
+  randomizer = Procedural::SmartRandomizer.new((1..100).to_a)
+  engine = Procedural::TemplateEngine.new
+  engine.load_template('perf', '[A] [B] [C]')
+  engine.load_word_bank('A', (1..10).to_a)
+  engine.load_word_bank('B', (1..10).to_a)
+  engine.load_word_bank('C', (1..10).to_a)
+  
+  random_time = Benchmark.realtime { 1000.times { randomizer.next } }
+  template_time = Benchmark.realtime { 1000.times { engine.generate('perf') } }
+  
+  puts "  SmartRandomizer: #{(random_time * 1000).round(2)}ms for 1000 operations"
+  puts "  TemplateEngine: #{(template_time * 1000).round(2)}ms for 1000 operations"
+  
+  if random_time < 0.1 && template_time < 0.1
+    puts "\n✅ Performance is excellent!"
+  else
+    puts "\n⚠️  Performance could be improved"
+  end
+rescue => e
+  puts "  ❌ Performance test failed: #{e.message}"
+end

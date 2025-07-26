@@ -1,0 +1,667 @@
+{
+  "task": {
+    "name": "Fibonacci Implementation",
+    "description": "Write a function that calculates the nth Fibonacci number. Include both recursive and iterative versions if possible.",
+    "validation": {
+      "test_cases": [
+        {
+          "n": 0,
+          "expected": 0
+        },
+        {
+          "n": 1,
+          "expected": 1
+        },
+        {
+          "n": 10,
+          "expected": 55
+        },
+        {
+          "n": 15,
+          "expected": 610
+        }
+      ]
+    }
+  },
+  "models": [
+    "qwen2.5:1.5b",
+    "qwen2.5:3b"
+  ],
+  "languages": [
+    "lisp",
+    "ruby",
+    "javascript",
+    "python",
+    "rust",
+    "go",
+    "java"
+  ],
+  "results": {
+    "qwen2.5:1.5b": {
+      "lisp": {
+        "model": "qwen2.5:1.5b",
+        "language": "lisp",
+        "response": "Certainly! Below is an example of how you can write two different implementations of calculating the `nth` Fibonacci number in Common Lisp: one using recursion (`defun`) and another using iteration (`defmacro`). The Fibonacci sequence is defined as follows:\n\n- `F(0) = 0`\n- `F(1) = 1`\n- For any other index, `F(n) = F(n-1) + F(n-2)`\n\n### Recursive Implementation\n\n```lisp\n(defun fibonacci (n)\n  \"Calculate the nth Fibonacci number using recursion.\"\n  (if (= n 0)\n      0\n      (+ (fibonacci (- n 1)) (fibonacci (- n 2))))\n```\n\n### Iterative Implementation\n\n```lisp\n(defmacro fibonacci (n)\n  \"Calculate the nth Fibonacci number using iteration.\"\n  `(let ((a 0) (b 1))\n     (loop repeat n collect b into fib\n       finally (return fib))))\n\n(defun test-fibonacci ()\n  \"Test the fibonacci function with a few examples.\"\n  (format t \"~%F(0): ~d~%\" (fibonacci 0))\n  (format t \"~%F(1): ~d~%\" (fibonacci 1))\n  (format t \"~%F(2): ~d~%\" (fibonacci 2))\n  (format t \"~%F(3): ~d~%\" (fibonacci 3))\n  (format t \"~%F(4): ~d~%\" (fibonacci 4))\n  (format t \"~%F(5): ~d~%\" (fibonacci 5)))\n```\n\n### Explanation\n\n- **Recursive Implementation**: The `fibonacci` function uses recursion to calculate the nth Fibonacci number. It checks if `n` is zero, in which case it returns 0. Otherwise, it recursively calls itself with `n-1` and `n-2`, adding the results.\n\n- **Iterative Implementation**: The `fibonacci` macro defines a loop that iterates from 0 to `n`. Inside the loop, it initializes two variables `a` and `b` to represent the first two Fibonacci numbers (0 and 1). It then collects each value of `b` into the variable `fib`, which is finally returned.\n\n- **Testing**: The `test-fibonacci` function demonstrates how to use both implementations by printing out the first few Fibonacci numbers.",
+        "execution_time": 12.999674,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "defun",
+            "if",
+            "let",
+            "loop"
+          ],
+          "quality_score": 9,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response",
+            "Proper parentheses usage"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "ruby": {
+        "model": "qwen2.5:1.5b",
+        "language": "ruby",
+        "response": "Certainly! Below is an example of how you can write two different methods in Ruby to calculate the `n`th Fibonacci number: one using recursion, and another using iteration.\n\n### Recursive Method\n\n```ruby\ndef fibonacci_recursive(n)\n  return n <= 1 ? n : fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2)\nend\n```\n\n### Iterative Method\n\n```ruby\ndef fibonacci_iterative(n)\n  if n < 0\n    raise ArgumentError, \"n must be a non-negative integer\"\n  end\n\n  fib = [0, 1]\n  \n  (2..n).each do |i|\n    fib[i] = fib[i - 1] + fib[i - 2]\n  end\n  \n  return fib[n]\nend\n```\n\n### Explanation:\n\n- **Recursive Method**:\n  - The base case is when `n` is less than or equal to 1, where the function returns `n`.\n  - For larger values of `n`, it recursively calls itself with `n-1` and `n-2`, summing their results.\n\n- **Iterative Method**:\n  - We initialize an array `fib` with the first two Fibonacci numbers `[0, 1]`.\n  - We then iterate from 2 to `n`, calculating each subsequent number by adding the previous two numbers in the array.\n  - Finally, we return the `n`th element of the array.\n\n### Example Usage:\n\n```ruby\nputs fibonacci_recursive(10) # Output: 55\nputs fibonacci_iterative(10) # Output: 55\n\n# For large values of n, both methods will be equally efficient.\n```\n\nBoth methods are correct and can handle any non-negative integer input for the `n`th Fibonacci number. The recursive method is more straightforward but may suffer from performance issues due to repeated calculations (memoization could improve it). The iterative method is generally faster and uses less memory.",
+        "execution_time": 10.320757,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "def",
+            "if",
+            "end",
+            "each"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "javascript": {
+        "model": "qwen2.5:1.5b",
+        "language": "javascript",
+        "response": "Certainly! Below is an example of how you can write two functions in JavaScript using modern ES6+ syntax and arrow functions to calculate the `nth` Fibonacci number:\n\n```javascript\n// Function to calculate the nth Fibonacci number using a loop\nfunction fibonacciLoop(n) {\n    if (n <= 1) return n;\n    \n    let fib = [0, 1];\n    for (let i = 2; i < n; i++) {\n        fib[i] = fib[i - 1] + fib[i - 2];\n    }\n    return fib[n - 1];\n}\n\n// Function to calculate the nth Fibonacci number using recursion\nfunction fibonacciRecursion(n) {\n    if (n <= 1) return n;\n    \n    let result = fibonacciRecursion(n - 1) + fibonacciRecursion(n - 2);\n    return result;\n}\n\n// Example usage:\nconsole.log(fibonacciLoop(10)); // Output: 55\nconsole.log(fibonacciRecursion(10)); // Output: 55\n\n// Alternatively, using memoization to optimize the recursion function\nconst fibonacciMemo = (n) => {\n    const cache = new Map();\n    \n    if (cache.has(n)) return cache.get(n);\n    \n    let result;\n    if (n <= 1) result = n;\n    else result = fibonacciMemo(n - 1) + fibonacciMemo(n - 2);\n    \n    cache.set(n, result);\n    return result;\n};\n\n// Example usage with memoization:\nconsole.log(fibonacciMemo(10)); // Output: 55\n```\n\n### Explanation:\n\n- **Loop Function (`fibonacciLoop`)**: This function uses a loop to calculate the `nth` Fibonacci number. It initializes an array `[0, 1]` and iterates from index 2 up to `n`, adding each subsequent Fibonacci number by summing the two preceding ones.\n\n- **Recursion Function (`fibonacciRecursion`)**: This function calculates the `nth` Fibonacci number using recursion. If `n` is less than or equal to 1, it returns `n`. Otherwise, it recursively calls itself for `n - 1` and `n - 2`, summing their results.\n\n- **Memoization Function (`fibonacciMemo`)**: This function uses a Map object to store previously computed Fibonacci numbers. It checks if the result is already in the cache before computing it again, which significantly speeds up the recursion by avoiding redundant calculations.\n\nBoth functions can be used interchangeably depending on whether you prefer using loops or recursion for your specific use case. The memoization version is particularly useful when calculating large values of `n` due to its significant performance improvement over pure recursion.",
+        "execution_time": 15.293907,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "function",
+            "const",
+            "let",
+            "if",
+            "else",
+            "return",
+            "=>",
+            "for"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "python": {
+        "model": "qwen2.5:1.5b",
+        "language": "python",
+        "response": "Certainly! Below is an implementation of both the recursive and iterative methods for calculating the `n`th Fibonacci number in Python, adhering to PEP 8 guidelines.\n\n### Recursive Implementation\n\n```python\ndef fibonacci_recursive(n):\n    \"\"\"\n    Calculate the nth Fibonacci number using recursion.\n    \n    Args:\n        n (int): The position in the Fibonacci sequence.\n        \n    Returns:\n        int: The nth Fibonacci number.\n    \"\"\"\n    if n <= 0:\n        return None\n    elif n == 1:\n        return 0\n    elif n == 2:\n        return 1\n    \n    # Recursive calculation\n    return fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2)\n\n# Example usage:\nprint(fibonacci_recursive(10))  # Output: 34\n```\n\n### Iterative Implementation\n\n```python\ndef fibonacci_iterative(n):\n    \"\"\"\n    Calculate the nth Fibonacci number using an iterative approach.\n    \n    Args:\n        n (int): The position in the Fibonacci sequence.\n        \n    Returns:\n        int: The nth Fibonacci number.\n    \"\"\"\n    if n <= 0:\n        return None\n    \n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    \n    return b\n\n# Example usage:\nprint(fibonacci_iterative(10))  # Output: 34\n```\n\n### Explanation:\n\n- **Recursive Implementation**:\n  - The function `fibonacci_recursive` uses recursion to calculate the Fibonacci number.\n  - It checks for base cases (n=1 and n=2) directly, as they are simple.\n  - For larger values of `n`, it calls itself with `n-1` and `n-2` until it reaches these base cases.\n\n- **Iterative Implementation**:\n  - The function `fibonacci_iterative` uses an iterative approach to calculate the Fibonacci number.\n  - It initializes two variables, `a` and `b`, representing the first two numbers in the sequence (0 and 1).\n  - It then iterates from 2 up to `n`, updating these variables until it reaches `n`.\n  - The final value of `b` is returned as the nth Fibonacci number.\n\nBoth implementations are straightforward and adhere to PEP 8 guidelines for readability, maintainability, and style consistency.",
+        "execution_time": 13.21769,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "def",
+            "if",
+            "elif",
+            "return",
+            "for",
+            "range"
+          ],
+          "quality_score": 9,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response",
+            "Proper Python indentation"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "rust": {
+        "model": "qwen2.5:1.5b",
+        "language": "rust",
+        "response": "Certainly! Below is an example of how you can write Rust functions to calculate the `nth` Fibonacci number using both iterative and recursive methods, along with handling edge cases.\n\n### Iterative Approach\n\n```rust\nfn fibonacci_iterative(n: usize) -> Option<usize> {\n    match n {\n        0 => Some(0),\n        1 | 2 => Some(1), // Base case for the first two Fibonacci numbers\n        _ => {\n            let mut fib = vec![None; n + 1];\n            fib[0] = Some(0);\n            fib[1] = Some(1);\n\n            for i in 2..=n {\n                fib[i] = fib[i - 1].map_or(Some(fib[i - 1]), |prev| prev + fib[i - 2]);\n            }\n\n            fib[n]\n        }\n    }\n}\n\nfn main() {\n    println!(\"Fibonacci of 0: {}\", fibonacci_iterative(0).unwrap()); // Should print 0\n    println!(\"Fibonacci of 1: {}\", fibonacci_iterative(1).unwrap()); // Should print 1\n    println!(\"Fibonacci of 2: {}\", fibonacci_iterative(2).unwrap()); // Should print 1\n    println!(\"Fibonacci of 3: {}\", fibonacci_iterative(3).unwrap()); // Should print 2\n    println!(\"Fibonacci of 4: {}\", fibonacci_iterative(4).unwrap()); // Should print 3\n    println!(\"Fibonacci of 5: {}\", fibonacci_iterative(5).unwrap()); // Should print 5\n}\n```\n\n### Recursive Approach\n\n```rust\nfn fibonacci_recursive(n: usize) -> Option<usize> {\n    match n {\n        0 => Some(0),\n        1 | 2 => Some(1), // Base case for the first two Fibonacci numbers\n        _ => {\n            let fib = fibonacci_recursive(n - 1).map_or(Some(0), |prev| prev + fib);\n            fib.map(|fib_prev| fib_prev + n)\n        }\n    }\n}\n\nfn main() {\n    println!(\"Fibonacci of 0: {}\", fibonacci_recursive(0).unwrap()); // Should print 0\n    println!(\"Fibonacci of 1: {}\", fibonacci_recursive(1).unwrap()); // Should print 1\n    println!(\"Fibonacci of 2: {}\", fibonacci_recursive(2).unwrap()); // Should print 1\n    println!(\"Fibonacci of 3: {}\", fibonacci_recursive(3).unwrap()); // Should print 2\n    println!(\"Fibonacci of 4: {}\", fibonacci_recursive(4).unwrap()); // Should print 3\n    println!(\"Fibonacci of 5: {}\", fibonacci_recursive(5).unwrap()); // Should print 5\n}\n```\n\n### Explanation\n\n- **Iterative Approach**: This method uses an array to store previously computed Fibonacci numbers, reducing the time complexity from exponential (recursive calls) to linear (iterative computation).\n  \n- **Recursive Approach**: This method directly computes the nth Fibonacci number using recursion. It has a higher time complexity due to repeated calculations but is simpler and easier to understand.\n\nBoth methods handle edge cases such as `n = 0` or `n = 1`, where the Fibonacci sequence starts with 0, 1, 1, 2, etc., respectively.",
+        "execution_time": 18.299533,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "fn",
+            "let",
+            "mut",
+            "match"
+          ],
+          "quality_score": 9,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response",
+            "Rust-specific syntax"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "go": {
+        "model": "qwen2.5:1.5b",
+        "language": "go",
+        "response": "Certainly! Below is an example of how you can write Go functions to calculate the `n`th Fibonacci number with proper error handling:\n\n```go\npackage main\n\nimport (\n\t\"fmt\"\n)\n\n// CalculateFibonacci returns the n-th Fibonacci number.\n// It uses a simple iterative approach for better performance and avoids recursion.\nfunc CalculateFibonacci(n int) (int, error) {\n\tif n < 0 {\n\t\treturn 0, fmt.Errorf(\"n must be a non-negative integer\")\n\t}\n\n\ta, b := 0, 1\n\tfor i := 2; i <= n; i++ {\n\t\ta, b = b, a+b\n\t}\n\treturn b, nil\n}\n\nfunc main() {\n\t// Example usage:\n\tfibNumber, err := CalculateFibonacci(10)\n\tif err != nil {\n\t\tfmt.Println(err)\n\t} else {\n\t\tfmt.Printf(\"The 10th Fibonacci number is: %d\\n\", fibNumber) // Output should be 55\n\t}\n}\n```\n\n### Explanation:\n\n- **CalculateFibonacci Function**:\n  - This function takes an integer `n` as input and returns the `n`-th Fibonacci number.\n  - It uses a simple iterative approach to calculate the Fibonacci sequence, which is more efficient than recursion for large values of `n`.\n  - The base cases are handled separately: if `n` is less than 0, it returns an error; otherwise, it initializes two variables `a` and `b` with the first two numbers in the Fibonacci sequence (0 and 1).\n  - It then iterates from 2 to `n`, updating `a` and `b` until reaching `n`.\n  - Finally, it returns the value of `b`.\n\n- **Error Handling**:\n  - The function checks if `n` is less than 0. If so, it returns an error message indicating that `n must be a non-negative integer`.\n\n### Example Usage:\n\nThe `main` function demonstrates how to use the `CalculateFibonacci` function by calculating and printing the 10th Fibonacci number.\n\nThis approach ensures that your program can handle large values of `n` efficiently while providing clear, informative error messages.",
+        "execution_time": 12.43802,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "func",
+            "if",
+            "else",
+            "return",
+            "var",
+            "for",
+            "int"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "java": {
+        "model": "qwen2.5:1.5b",
+        "language": "java",
+        "response": "Certainly! Below is an example of how you can write Java methods to calculate the `n`th Fibonacci number using two different approaches: iterative and recursive.\n\n### Iterative Approach\n\n```java\npublic class FibonacciCalculator {\n\n    /**\n     * Calculates the n-th Fibonacci number iteratively.\n     *\n     * @param n The position in the Fibonacci sequence (0-indexed).\n     * @return The n-th Fibonacci number.\n     */\n    public static int calculateFibonacciIterative(int n) {\n        if (n <= 1) return n;\n\n        int a = 0, b = 1;\n        for (int i = 2; i <= n; ++i) {\n            int next = a + b;\n            a = b;\n            b = next;\n        }\n        return b;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(calculateFibonacciIterative(10)); // Output: 55\n    }\n}\n```\n\n### Recursive Approach\n\n```java\npublic class FibonacciCalculator {\n\n    /**\n     * Calculates the n-th Fibonacci number recursively.\n     *\n     * @param n The position in the Fibonacci sequence (0-indexed).\n     * @return The n-th Fibonacci number.\n     */\n    public static int calculateFibonacciRecursive(int n) {\n        if (n <= 1) return n;\n\n        return calculateFibonacciRecursive(n - 1) + calculateFibonacciRecursive(n - 2);\n    }\n\n    public static void main(String[] args) {\n        System.out.println(calculateFibonacciRecursive(10)); // Output: 55\n    }\n}\n```\n\n### Explanation\n\n- **Iterative Approach**: This method uses a loop to compute the Fibonacci number iteratively. It starts with `a = 0` and `b = 1`, then updates these values in each iteration until it reaches the desired position `n`.\n\n- **Recursive Approach**: This method calls itself recursively, adding the two preceding numbers in the sequence to find the next one. The base case is when `n <= 1`, where it simply returns `n` (since the first two Fibonacci numbers are 0 and 1).\n\nBoth methods will correctly compute the `n`th Fibonacci number but with different performance characteristics: the iterative method is generally faster due to its lower overhead, while the recursive method can be more efficient for very small values of `n`.",
+        "execution_time": 12.865068,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "public",
+            "static",
+            "int",
+            "if",
+            "return",
+            "for",
+            "while"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      }
+    },
+    "qwen2.5:3b": {
+      "lisp": {
+        "model": "qwen2.5:3b",
+        "language": "lisp",
+        "response": "Certainly! Below are the LISP functions for calculating the `n`th Fibonacci number using both recursive and iterative approaches.\n\n### Recursive Version\n\n```lisp\n(defun fibonacci (n)\n  \"Calculate the n-th Fibonacci number recursively.\"\n  (if (< n 2)\n      n\n      (+ (fibonacci (- n 1))\n         (fibonacci (- n 2)))))\n```\n\n### Iterative Version\n\n```lisp\n(defun fibonacci-iterative (n)\n  \"Calculate the n-th Fibonacci number iteratively.\"\n  (let ((a 0) (b 1))\n    (loop for i from 0 to (- n 1)\n           do (setq a (+ a b))\n              (setq b a))\n    a))\n```\n\n### Explanation\n\n- **Recursive Version**:\n  - The function `fibonacci` checks if the input number `n` is less than 2. If it is, then it returns `n`. Otherwise, it recursively calls itself to calculate the Fibonacci numbers for `n-1` and `n-2`, adding them together.\n  \n- **Iterative Version**:\n  - The function `fibonacci-iterative` uses a loop to iteratively compute the Fibonacci number. It initializes two variables `a` and `b` with values 0 and 1, respectively. In each iteration of the loop, it updates these variables such that `a` becomes the sum of the previous two numbers (`a + b`) and `b` becomes the value of `a`. This process continues until the loop runs for `n-1` iterations.\n\nYou can test these functions with different values of `n` to see how they work. For example, `(fibonacci 5)` should return `5`, and `(fibonacci-iterative 5)` should also return `5`.\n\nHere is a quick way to test both versions:\n\n```lisp\n(format t \"Recursive: (fibonacci 10) -> ~d~%\" (fibonacci 10))\n(format t \"Iterative: (fibonacci-iterative 10) -> ~d~%\" (fibonacci-iterative 10))\n```\n\nThis will output the Fibonacci number for `n=10` using both methods.",
+        "execution_time": 23.454102,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "defun",
+            "if",
+            "let",
+            "loop",
+            "do"
+          ],
+          "quality_score": 9,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response",
+            "Proper parentheses usage"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "ruby": {
+        "model": "qwen2.5:3b",
+        "language": "ruby",
+        "response": "Certainly! Below are the implementations of the Fibonacci sequence calculation using both recursive and iterative approaches in Ruby.\n\n### Recursive Version\n\n```ruby\ndef fibonacci_recursive(n)\n  return n if n <= 1\n  fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2)\nend\n```\n\nThis method uses recursion to calculate the nth Fibonacci number. It works by calling itself with `n-1` and `n-2`, summing up these values until it reaches base cases (when `n <= 1`). However, this approach is not efficient for large numbers due to its exponential time complexity.\n\n### Iterative Version\n\n```ruby\ndef fibonacci_iterative(n)\n  return n if n <= 1\n  a = 0\n  b = 1\n  (2..n).each do |i|\n    temp = a + b\n    a, b = b, temp\n  end\n  b\nend\n```\n\nThis method uses an iterative approach to calculate the nth Fibonacci number. It initializes two variables `a` and `b` with the first two numbers of the sequence (0 and 1). Then it iterates from 2 up to `n`, updating these variables in each iteration until reaching the desired position.\n\n### Example Usage\n\n```ruby\n# Recursive version\nputs fibonacci_recursive(10) # Output: 55\n\n# Iterative version\nputs fibonacci_iterative(10) # Output: 55\n```\n\nBoth methods are efficient for calculating Fibonacci numbers, but the iterative approach is generally preferred due to its linear time complexity and better performance.",
+        "execution_time": 15.490102,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "def",
+            "if",
+            "end",
+            "each"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "javascript": {
+        "model": "qwen2.5:3b",
+        "language": "javascript",
+        "response": "Certainly! Below is an example of how you can write a function in ES6+ (using arrow functions) to compute the `n`th Fibonacci number:\n\n```javascript\n// Function to calculate the n-th Fibonacci number using memoization for efficiency.\nconst fibonacci = (n, memo = {}) => {\n    if (memo[n]) return memo[n]; // If already computed, return from cache\n\n    if (n <= 1) return n; // Base case: F(0) and F(1)\n\n    memo[n] = fibonacci(n - 1, memo) + fibonacci(n - 2, memo); // Recursive call\n    return memo[n];\n};\n\n// Example usage:\nconsole.log(fibonacci(10)); // Output: 55\n```\n\nIn this code:\n\n- The `memo` object is used to store previously computed Fibonacci numbers. This helps in reducing the number of recursive calls and improving performance.\n- If a value for `n` already exists in the `memo` object, it returns that value directly from the cache (i.e., memoization).\n- Base cases are handled when `n <= 1`, returning `n` itself since F(0) = 0 and F(1) = 1.\n- For larger values of `n`, the function recursively calls itself to compute Fibonacci numbers for smaller values until it reaches the base case.\n\nThis approach ensures that each Fibonacci number is computed only once, making the function efficient even for large inputs.",
+        "execution_time": 14.378629,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "function",
+            "const",
+            "if",
+            "return",
+            "=>",
+            "for"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "python": {
+        "model": "qwen2.5:3b",
+        "language": "python",
+        "response": "Certainly! Below are two implementations of calculating the `n`th Fibonacci number in Python: one using recursion and another using an iterative approach. Both have been formatted according to PEP 8 guidelines.\n\n### Recursive Version\n\n```python\ndef fibonacci_recursive(n):\n    \"\"\"\n    Calculate the n-th Fibonacci number using a recursive approach.\n    \n    Args:\n        n (int): The position of the desired Fibonacci number in the sequence.\n        \n    Returns:\n        int: The n-th Fibonacci number.\n    \"\"\"\n    if n <= 0:\n        raise ValueError(\"n must be a positive integer\")\n    elif n == 1 or n == 2:\n        return 1\n    else:\n        return fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2)\n```\n\n### Iterative Version\n\n```python\ndef fibonacci_iterative(n):\n    \"\"\"\n    Calculate the n-th Fibonacci number using an iterative approach.\n    \n    Args:\n        n (int): The position of the desired Fibonacci number in the sequence.\n        \n    Returns:\n        int: The n-th Fibonacci number.\n    \"\"\"\n    if n <= 0:\n        raise ValueError(\"n must be a positive integer\")\n    \n    # Initialize the first two Fibonacci numbers\n    prev, curr = 1, 1\n    \n    for _ in range(2, n):\n        prev, curr = curr, prev + curr\n        \n    return curr\n```\n\n### Example Usage\n\n```python\n# Test recursive function\nprint(fibonacci_recursive(10))  # Output: 55\n\n# Test iterative function\nprint(fibonacci_iterative(10))  # Output: 55\n```\n\nThese functions are designed to be clear and maintainable, following PEP 8 guidelines for naming conventions and spacing. The recursive version is straightforward but may not be the most efficient for large values of `n` due to repeated calculations. The iterative version avoids this issue by using a loop that only requires constant space.",
+        "execution_time": 18.563252,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "def",
+            "if",
+            "elif",
+            "else",
+            "return",
+            "for",
+            "range"
+          ],
+          "quality_score": 9,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response",
+            "Proper Python indentation"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "rust": {
+        "model": "qwen2.5:3b",
+        "language": "rust",
+        "response": "Certainly! Below is an example of how you can write a Rust function to calculate the `n`th Fibonacci number with proper type annotations and handling for edge cases.\n\n```rust\n/// Calculates the n-th Fibonacci number.\n///\n/// # Examples\n///\n/// ```\n/// assert_eq!(fibonacci(0), 0);\n/// assert_eq!(fibonacci(1), 1);\n/// assert_eq!(fibonacci(2), 1);\n/// assert_eq!(fibonacci(3), 2);\n/// assert_eq!(fibonacci(4), 3);\n/// assert_eq!(fibonacci(5), 5);\n/// ```\nfn fibonacci(n: u32) -> u64 {\n    match n {\n        0 => 0,\n        1 | 2 => 1,\n        _ => {\n            let mut a = 0;\n            let mut b = 1;\n\n            for _ in 2..n {\n                let temp = a + b;\n                a = b;\n                b = temp;\n            }\n\n            b\n        }\n    }\n}\n\nfn main() {\n    // Example usage:\n    println!(\"The 5th Fibonacci number is: {}\", fibonacci(5)); // Output: The 5th Fibonacci number is: 5\n}\n```\n\n### Explanation:\n\n1. **Function Definition**: \n   - `fibonacci(n: u32) -> u64`: This function takes a non-negative integer `n` and returns the `n`-th Fibonacci number as an unsigned 64-bit integer (`u64`). \n\n2. **Edge Cases**:\n   - For `n = 0`, it directly returns `0`.\n   - For `n = 1` or `n = 2`, it returns `1`.\n\n3. **General Case**:\n   - For any other value of `n`, the function uses a loop to calculate the Fibonacci number iteratively, which is more efficient than using recursion for large values of `n`.\n   \n4. **Loop Implementation**:\n   - The loop starts from 2 and goes up to `n-1`. In each iteration, it calculates the next Fibonacci number by summing the last two numbers (`a` and `b`). It then updates `a` with the current value of `b`, and `b` with the new calculated value.\n\n5. **Main Function**:\n   - This is a simple example to demonstrate how you can use the `fibonacci` function in your main program.\n\nThis implementation ensures that the Fibonacci number calculation is efficient even for larger values of `n`.",
+        "execution_time": 25.504561,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "fn",
+            "let",
+            "mut",
+            "match",
+            "return",
+            "u32"
+          ],
+          "quality_score": 9,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response",
+            "Rust-specific syntax"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "go": {
+        "model": "qwen2.5:3b",
+        "language": "go",
+        "response": "Certainly! Below is an example of how you can write a Go function to calculate the `n`th Fibonacci number with proper error handling:\n\n```go\npackage fibonacci\n\nimport (\n\t\"errors\"\n)\n\n// CalculateFibonacci calculates the n-th Fibonacci number.\nfunc CalculateFibonacci(n int) (int, error) {\n\tif n < 0 {\n\t\treturn 0, errors.New(\"Input must be a non-negative integer\")\n\t}\n\n\tif n == 0 {\n\t\treturn 0, nil\n\t}\n\tif n == 1 {\n\t\treturn 1, nil\n\t}\n\n\ta, b := 0, 1\n\n\tfor i := 2; i <= n; i++ {\n\t\ta, b = b, a+b\n\t}\n\n\treturn b, nil\n}\n```\n\n### Explanation:\n- **Input Validation:** The function first checks if the input `n` is less than zero. If it is, an error is returned.\n  \n- **Base Cases:** For `n == 0`, the function returns `0`. For `n == 1`, the function returns `1`.\n\n- **Fibonacci Calculation:** For any other value of `n`, the function calculates the Fibonacci number iteratively. It uses two variables, `a` and `b`, to keep track of the last two numbers in the sequence.\n\n### Example Usage:\n\n```go\npackage main\n\nimport (\n\t\"fmt\"\n\t\"github.com/alibaba/qwen/fibonacci\" // Adjust import path as necessary\n)\n\nfunc main() {\n\tn := 10\n\tfibNumber, err := fibonacci.CalculateFibonacci(n)\n\tif err != nil {\n\t\tfmt.Println(\"Error:\", err)\n\t} else {\n\t\tfmt.Printf(\"The %d-th Fibonacci number is: %d\\n\", n, fibNumber)\n\t}\n}\n```\n\n### Error Handling:\n- If the input `n` is negative, an error message will be printed.\n- For valid inputs (non-negative integers), the function returns the corresponding Fibonacci number.\n\nThis code can be used in any Go environment and should work as expected.",
+        "execution_time": 20.198002,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "func",
+            "if",
+            "else",
+            "return",
+            "var",
+            "for",
+            "int"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      },
+      "java": {
+        "model": "qwen2.5:3b",
+        "language": "java",
+        "response": "Certainly! Below is an example of how you can write two different methods in Java to calculate the `n`th Fibonacci number: one using recursion and another using iteration.\n\n### Using Recursion\n\n```java\npublic class FibonacciCalculator {\n    // Recursive method to calculate the nth Fibonacci number\n    public static long fibonacciRecursive(int n) {\n        if (n <= 0) {\n            throw new IllegalArgumentException(\"Input must be a positive integer.\");\n        }\n        return n < 2 ? n : fibonacciRecursive(n - 1) + fibonacciRecursive(n - 2);\n    }\n\n    // Main method to test the recursive Fibonacci function\n    public static void main(String[] args) {\n        System.out.println(fibonacciRecursive(10)); // Output: 55\n    }\n}\n```\n\n### Using Iteration\n\n```java\npublic class FibonacciCalculator {\n    // Iterative method to calculate the nth Fibonacci number\n    public static long fibonacciIterative(int n) {\n        if (n <= 0) {\n            throw new IllegalArgumentException(\"Input must be a positive integer.\");\n        }\n\n        long a = 0, b = 1;\n        for (int i = 2; i <= n; i++) {\n            long temp = a + b;\n            a = b;\n            b = temp;\n        }\n        return n < 2 ? n : b;\n    }\n\n    // Main method to test the iterative Fibonacci function\n    public static void main(String[] args) {\n        System.out.println(fibonacciIterative(10)); // Output: 55\n    }\n}\n```\n\n### Explanation\n\n- **Recursive Method (`fibonacciRecursive`)**:\n  - This method calculates the `n`th Fibonacci number using a recursive approach. It calls itself with smaller values of `n` until it reaches base cases (when `n` is either 0 or 1).\n  \n- **Iterative Method (`fibonacciIterative`)**:\n  - This method uses an iterative loop to calculate the `n`th Fibonacci number without recursion. It maintains two variables, `a` and `b`, where `a` represents the current Fibonacci number and `b` represents the next one in sequence.\n\nBoth methods include a check for invalid input (negative numbers or zero) and handle them appropriately by throwing an `IllegalArgumentException`.\n\nYou can choose either method based on your preference. The recursive approach is more straightforward but may not be efficient for large values of `n` due to repeated calculations, while the iterative approach avoids this issue by using only two variables.",
+        "execution_time": 24.173485,
+        "analysis": {
+          "has_function": true,
+          "keywords_found": [
+            "public",
+            "static",
+            "int",
+            "long",
+            "if",
+            "return",
+            "for",
+            "while"
+          ],
+          "quality_score": 8,
+          "good_reasons": [
+            "Valid function definition",
+            "Good keyword usage",
+            "Mentions implementation approach",
+            "Proper code formatting",
+            "Comprehensive response"
+          ],
+          "poor_reasons": []
+        },
+        "success": true
+      }
+    }
+  },
+  "samples": [
+    {
+      "model": "qwen2.5:1.5b",
+      "language": "lisp",
+      "success": true,
+      "quality_score": 9,
+      "execution_time": 12.999674,
+      "code_length": 1776,
+      "has_function": true,
+      "keywords_found": [
+        "defun",
+        "if",
+        "let",
+        "loop"
+      ]
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "language": "ruby",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 10.320757,
+      "code_length": 1571,
+      "has_function": true,
+      "keywords_found": [
+        "def",
+        "if",
+        "end",
+        "each"
+      ]
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "language": "javascript",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 15.293907,
+      "code_length": 2292,
+      "has_function": true,
+      "keywords_found": [
+        "function",
+        "const",
+        "let",
+        "if",
+        "else",
+        "return",
+        "=>",
+        "for"
+      ]
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "language": "python",
+      "success": true,
+      "quality_score": 9,
+      "execution_time": 13.21769,
+      "code_length": 2032,
+      "has_function": true,
+      "keywords_found": [
+        "def",
+        "if",
+        "elif",
+        "return",
+        "for",
+        "range"
+      ]
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "language": "rust",
+      "success": true,
+      "quality_score": 9,
+      "execution_time": 18.299533,
+      "code_length": 2662,
+      "has_function": true,
+      "keywords_found": [
+        "fn",
+        "let",
+        "mut",
+        "match"
+      ]
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "language": "go",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 12.43802,
+      "code_length": 1779,
+      "has_function": true,
+      "keywords_found": [
+        "func",
+        "if",
+        "else",
+        "return",
+        "var",
+        "for",
+        "int"
+      ]
+    },
+    {
+      "model": "qwen2.5:1.5b",
+      "language": "java",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 12.865068,
+      "code_length": 2133,
+      "has_function": true,
+      "keywords_found": [
+        "public",
+        "static",
+        "int",
+        "if",
+        "return",
+        "for",
+        "while"
+      ]
+    },
+    {
+      "model": "qwen2.5:3b",
+      "language": "lisp",
+      "success": true,
+      "quality_score": 9,
+      "execution_time": 23.454102,
+      "code_length": 1708,
+      "has_function": true,
+      "keywords_found": [
+        "defun",
+        "if",
+        "let",
+        "loop",
+        "do"
+      ]
+    },
+    {
+      "model": "qwen2.5:3b",
+      "language": "ruby",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 15.490102,
+      "code_length": 1350,
+      "has_function": true,
+      "keywords_found": [
+        "def",
+        "if",
+        "end",
+        "each"
+      ]
+    },
+    {
+      "model": "qwen2.5:3b",
+      "language": "javascript",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 14.378629,
+      "code_length": 1230,
+      "has_function": true,
+      "keywords_found": [
+        "function",
+        "const",
+        "if",
+        "return",
+        "=>",
+        "for"
+      ]
+    },
+    {
+      "model": "qwen2.5:3b",
+      "language": "python",
+      "success": true,
+      "quality_score": 9,
+      "execution_time": 18.563252,
+      "code_length": 1783,
+      "has_function": true,
+      "keywords_found": [
+        "def",
+        "if",
+        "elif",
+        "else",
+        "return",
+        "for",
+        "range"
+      ]
+    },
+    {
+      "model": "qwen2.5:3b",
+      "language": "rust",
+      "success": true,
+      "quality_score": 9,
+      "execution_time": 25.504561,
+      "code_length": 1940,
+      "has_function": true,
+      "keywords_found": [
+        "fn",
+        "let",
+        "mut",
+        "match",
+        "return",
+        "u32"
+      ]
+    },
+    {
+      "model": "qwen2.5:3b",
+      "language": "go",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 20.198002,
+      "code_length": 1557,
+      "has_function": true,
+      "keywords_found": [
+        "func",
+        "if",
+        "else",
+        "return",
+        "var",
+        "for",
+        "int"
+      ]
+    },
+    {
+      "model": "qwen2.5:3b",
+      "language": "java",
+      "success": true,
+      "quality_score": 8,
+      "execution_time": 24.173485,
+      "code_length": 2339,
+      "has_function": true,
+      "keywords_found": [
+        "public",
+        "static",
+        "int",
+        "long",
+        "if",
+        "return",
+        "for",
+        "while"
+      ]
+    }
+  ]
+}

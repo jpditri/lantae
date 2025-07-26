@@ -50,6 +50,15 @@ end
 RSpec.configure do |config|
   config.include TestHelpers
   
+  # Allow real HTTP connections for integration tests
+  config.before(:each, :integration) do
+    WebMock.allow_net_connect!
+  end
+  
+  config.after(:each, :integration) do
+    WebMock.disable_net_connect!
+  end
+  
   config.expect_with :rspec do |expectations|
     expectations.include_chain_clauses_in_custom_matcher_descriptions = true
   end

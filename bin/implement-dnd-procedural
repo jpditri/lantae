@@ -1,0 +1,376 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'json'
+
+# Task definitions for the procedural generation system
+TASKS = [
+  {
+    name: "Create procedural infrastructure directories",
+    commands: [
+      "mkdir -p ../dnd-lantae/lib/ruby/procedural",
+      "mkdir -p ../dnd-lantae/data/tables/npc",
+      "mkdir -p ../dnd-lantae/data/tables/relationships", 
+      "mkdir -p ../dnd-lantae/data/templates/quests",
+      "mkdir -p ../dnd-lantae/data/templates/rumors",
+      "mkdir -p ../dnd-lantae/data/word-banks"
+    ]
+  },
+  {
+    name: "Implement SmartRandomizer",
+    file: "../dnd-lantae/lib/ruby/procedural/smart_randomizer.rb",
+    content: <<~RUBY
+      module Procedural
+        class SmartRandomizer
+          attr_reader :items, :recent, :memory_size
+          
+          def initialize(items, memory_size: 10, weights: nil)
+            @items = items.dup
+            @memory_size = memory_size
+            @recent = []
+            @weights = weights || Hash.new(1.0)
+            @usage_count = Hash.new(0)
+          end
+          
+          def next(context: {})
+            available = filter_by_context(@items - @recent, context)
+            available = filter_by_context(@items, context) if available.empty?
+            
+            choice = weighted_sample(available)
+            
+            @recent << choice
+            @recent.shift if @recent.size > @memory_size
+            @usage_count[choice] += 1
+            
+            choice
+          end
+          
+          def next_batch(count, context: {})
+            results = []
+            count.times { results << self.next(context: context) }
+            results
+          end
+          
+          def reset_memory
+            @recent.clear
+            self
+          end
+          
+          def stats
+            {
+              total_items: @items.size,
+              recent_items: @recent.size,
+              usage_counts: @usage_count.sort_by { |_, v| -v }.to_h
+            }
+          end
+          
+          private
+          
+          def filter_by_context(items, context)
+            return items if context.empty?
+            
+            items.select do |item|
+              item_context = extract_context(item)
+              context.all? do |key, value|
+                item_context[key].nil? || item_context[key] == value
+              end
+            end
+          end
+          
+          def extract_context(item)
+            case item
+            when Hash
+              item[:context] || {}
+            else
+              {}
+            end
+          end
+          
+          def weighted_sample(items)
+            return items.sample if @weights.empty?
+            
+            total_weight = items.sum { |item| item_weight(item) }
+            random = rand * total_weight
+            
+            cumulative = 0
+            items.each do |item|
+              cumulative += item_weight(item)
+              return item if cumulative >= random
+            end
+            
+            items.last
+          end
+          
+          def item_weight(item)
+            base_weight = case item
+                          when Hash
+                            @weights[item[:id]] || @weights[item[:name]] || 1.0
+                          else
+                            @weights[item] || 1.0
+                          end
+            
+            frequency_penalty = 1.0 / (1 + @usage_count[item] * 0.1)
+            base_weight * frequency_penalty
+          end
+        end
+      end
+    RUBY
+  },
+  {
+    name: "Create SmartRandomizer tests",
+    file: "../dnd-lantae/spec/procedural/smart_randomizer_spec.rb",
+    content: <<~RUBY
+      require 'spec_helper'
+      require_relative '../../lib/ruby/procedural/smart_randomizer'
+      
+      RSpec.describe Procedural::SmartRandomizer do
+        let(:items) { %w[sword shield potion scroll] }
+        let(:randomizer) { described_class.new(items, memory_size: 2) }
+        
+        describe '#next' do
+          it 'returns an item from the list' do
+            expect(items).to include(randomizer.next)
+          end
+          
+          it 'avoids recent items when possible' do
+            first = randomizer.next
+            second = randomizer.next
+            
+            # With memory size 2, third item should avoid first two
+            100.times do
+              third = randomizer.next
+              if (items - [first, second]).any?
+                expect([first, second]).not_to include(third)
+                break
+              end
+            end
+          end
+          
+          it 'applies context filtering' do
+            context_items = [
+              { name: 'sword', context: { type: 'weapon' } },
+              { name: 'shield', context: { type: 'armor' } },
+              { name: 'potion', context: { type: 'consumable' } }
+            ]
+            
+            context_randomizer = described_class.new(context_items)
+            weapon = context_randomizer.next(context: { type: 'weapon' })
+            
+            expect(weapon[:name]).to eq('sword')
+          end
+        end
+        
+        describe '#stats' do
+          it 'tracks usage statistics' do
+            5.times { randomizer.next }
+            stats = randomizer.stats
+            
+            expect(stats[:total_items]).to eq(4)
+            expect(stats[:recent_items]).to be <= 2
+            expect(stats[:usage_counts]).to be_a(Hash)
+          end
+        end
+      end
+    RUBY
+  },
+  {
+    name: "Implement TemplateEngine",
+    file: "../dnd-lantae/lib/ruby/procedural/template_engine.rb",
+    content: <<~RUBY
+      require 'yaml'
+      
+      module Procedural
+        class TemplateEngine
+          attr_reader :templates, :word_banks, :campaign_context
+          
+          def initialize(campaign_path: nil)
+            @templates = {}
+            @word_banks = {}
+            @campaign_context = load_campaign_context(campaign_path)
+            @variable_pattern = /\\[([A-Z_]+)(?::([a-z_]+))?\\]/
+          end
+          
+          def load_template(name, content)
+            @templates[name] = content
+            self
+          end
+          
+          def load_word_bank(category, words)
+            @word_banks[category] = words
+            self
+          end
+          
+          def generate(template_name, overrides: {}, campaign_specific: true)
+            template = @templates[template_name]
+            raise "Template '\#{template_name}' not found" unless template
+            
+            result = template.dup
+            
+            result.scan(@variable_pattern).uniq.each do |match|
+              category = match[0]
+              modifier = match[1]
+              placeholder = "[\#{category}\#{modifier ? ':' + modifier : ''}]"
+              
+              replacement = if overrides.key?(category)
+                              overrides[category]
+                            elsif campaign_specific && @campaign_context[category.downcase]
+                              select_from_campaign(category.downcase, modifier)
+                            else
+                              select_from_bank(category, modifier)
+                            end
+              
+              result.gsub!(placeholder, replacement.to_s)
+            end
+            
+            result
+          end
+          
+          private
+          
+          def load_campaign_context(campaign_path)
+            return {} unless campaign_path && File.exist?(campaign_path)
+            
+            context = {}
+            
+            if File.directory?(campaign_path)
+              Dir.glob(File.join(campaign_path, '*.yml')).each do |file|
+                data = YAML.load_file(file)
+                context.merge!(data) if data.is_a?(Hash)
+              end
+            else
+              data = YAML.load_file(campaign_path)
+              context = data if data.is_a?(Hash)
+            end
+            
+            context
+          rescue => e
+            puts "Error loading campaign context: \#{e.message}"
+            {}
+          end
+          
+          def select_from_campaign(category, modifier)
+            items = @campaign_context[category]
+            return select_from_bank(category.upcase, modifier) if items.nil? || items.empty?
+            
+            items.sample
+          end
+          
+          def select_from_bank(category, modifier)
+            bank = @word_banks[category]
+            raise "Word bank '\#{category}' not found" unless bank
+            
+            if bank.is_a?(Array)
+              bank.sample
+            elsif bank.is_a?(Hash)
+              bank.values.flatten.sample
+            else
+              bank.to_s
+            end
+          end
+        end
+      end
+    RUBY
+  },
+  {
+    name: "Create sample word banks",
+    file: "../dnd-lantae/data/word-banks/quest_elements.yml",
+    content: <<~YAML
+      ADJECTIVE:
+        - desperate
+        - mysterious
+        - wealthy
+        - ancient
+        - troubled
+        
+      NPC_TYPE:
+        - merchant
+        - noble
+        - priest
+        - scholar
+        - innkeeper
+        
+      PROBLEM:
+        - missing goods
+        - strange disappearances
+        - ancient curse
+        - political intrigue
+        - monster attacks
+        
+      REWARD:
+        - bag of gold
+        - magical item
+        - valuable information
+        - political favor
+        - ancient artifact
+    YAML
+  },
+  {
+    name: "Run verification tests",
+    commands: [
+      "cd ../dnd-lantae && ruby -Ilib -e \"require 'procedural/smart_randomizer'; puts 'SmartRandomizer loaded successfully'\"",
+      "cd ../dnd-lantae && ruby -Ilib -e \"require 'procedural/template_engine'; puts 'TemplateEngine loaded successfully'\""
+    ]
+  }
+]
+
+# Execute tasks
+def execute_task(task)
+  puts "\n🔧 #{task[:name]}"
+  puts "-" * 50
+  
+  if task[:commands]
+    task[:commands].each do |cmd|
+      puts "  → #{cmd}"
+      result = system(cmd)
+      unless result
+        puts "  ❌ Command failed!"
+        return false
+      end
+    end
+    puts "  ✅ Commands executed successfully"
+  elsif task[:file]
+    puts "  → Creating #{task[:file]}"
+    FileUtils.mkdir_p(File.dirname(task[:file]))
+    File.write(task[:file], task[:content])
+    puts "  ✅ File created"
+  end
+  
+  true
+end
+
+# Main execution
+puts "🚀 Implementing D&D Procedural Generation System"
+puts "=" * 60
+
+results = []
+TASKS.each do |task|
+  success = execute_task(task)
+  results << { task: task[:name], success: success }
+  
+  unless success
+    puts "\n❌ Task failed, stopping execution"
+    break
+  end
+end
+
+# Summary
+puts "\n" + "=" * 60
+puts "📊 IMPLEMENTATION SUMMARY"
+puts "=" * 60
+
+results.each do |result|
+  status = result[:success] ? "✅" : "❌"
+  puts "#{status} #{result[:task]}"
+end
+
+overall_success = results.all? { |r| r[:success] }
+puts "\n#{overall_success ? '✅' : '❌'} Overall Status: #{overall_success ? 'SUCCESS' : 'FAILED'}"
+
+if overall_success
+  puts "\n📝 Next Steps:"
+  puts "1. cd ../dnd-lantae"
+  puts "2. Add to Gemfile: gem 'rspec' (if not present)"
+  puts "3. Run: bundle install"
+  puts "4. Run: bundle exec rspec spec/procedural/"
+  puts "5. Create bin/npc-generator-procedural using these components"
+end
