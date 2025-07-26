@@ -7,6 +7,9 @@ SimpleCov.start do
   add_group 'Execution', 'lib/ruby/execution_engine.rb'
   add_group 'Database', 'lib/ruby/task_database.rb'
   add_group 'Fixes', 'lib/ruby/auto_fixer.rb'
+  add_group 'LSP Server', 'lib/ruby/lsp/server.rb'
+  add_group 'LSP Client', 'lib/ruby/lsp/client.rb'
+  add_group 'LSP Code Actions', 'lib/ruby/lsp/code_actions.rb'
 end
 
 require 'rspec'

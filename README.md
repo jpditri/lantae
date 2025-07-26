@@ -34,6 +34,7 @@ Lantae provides a unified interface to interact with various Large Language Mode
 - System commands: `bash`, `pwd`, `ls`, `find`
 - Development tools: `git`, `npm`/`bundle`, code execution (`python`, `ruby`, `node`)
 - **MCP Integration**: Model Context Protocol support for extensible tool access
+- **LSP Integration**: Full Language Server Protocol support with AI-powered code actions
 
 ## 🚀 Quick Start
 
@@ -98,6 +99,7 @@ chmod +x lantae
 | Temperature | `-t`, `--temperature` | Response randomness (0.0-1.0) |
 | Enable MCP | `--enable-mcp` | Enable Model Context Protocol support |
 | MCP Config | `--mcp-config PATH` | Path to MCP server configuration file |
+| Enable LSP | `--enable-lsp` | Enable Language Server Protocol for code intelligence |
 | Version | `-v`, `--version` | Show version |
 | Help | `-h`, `--help` | Show help message |
 
@@ -114,6 +116,7 @@ Once in the REPL, use these slash commands:
 | `/tool <name> <args>` | Execute a local tool |
 | `/tools` | List available tools |
 | `/mcp <subcommand>` | MCP server management (status, health, tools, reload) |
+| `/lsp <subcommand>` | LSP commands (status, analyze, format, complete) |
 | `/agent <subcommand>` | Agent commands (plan, execute, report, history) |
 | `/clear` | Clear conversation history |
 | `/info` | Show current provider/model |
@@ -252,6 +255,38 @@ MCP tools are available using the format `server__tool`:
 - **Command validation**: Basic detection of potentially harmful commands
 - **Argument sanitization**: Validates tool arguments before execution
 - **Connection management**: Secure server discovery and connection handling
+
+### LSP (Language Server Protocol) Support
+
+Lantae includes a full LSP implementation providing intelligent code assistance for all supported languages.
+
+#### Features
+- **AI-Powered Code Actions**: Refactor, optimize, generate tests, add documentation
+- **Intelligent Completions**: Context-aware suggestions with AI enhancements
+- **Real-time Diagnostics**: Syntax checking, security analysis, style violations
+- **Document Formatting**: Language-specific formatters with Lantae metadata preservation
+- **Hover Information**: Documentation, type info, and Lantae generation metadata
+
+#### Usage
+Enable LSP support with the `--enable-lsp` flag:
+```bash
+# Start with LSP support
+./lantae --enable-lsp
+
+# LSP commands in REPL
+/lsp status              # Check server status
+/lsp analyze file.rb     # Analyze a file
+/lsp format file.py      # Format a file
+```
+
+#### Editor Integration
+The LSP server (`bin/lantae-lsp`) works with any LSP-compatible editor:
+- VS Code: Install the Lantae extension (coming soon)
+- Neovim: Use nvim-lspconfig
+- Vim: Use coc.nvim
+- Emacs: Use lsp-mode
+
+See [LSP Implementation Guide](docs/LSP-IMPLEMENTATION.md) for detailed configuration.
 
 ## 🧠 Reasoning Models Comparison
 

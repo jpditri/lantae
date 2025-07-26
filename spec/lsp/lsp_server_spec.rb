@@ -1,0 +1,411 @@
+require 'spec_helper'
+require_relative '../../lib/ruby/lsp/server'
+require 'stringio'
+
+RSpec.describe Lantae::LSP::Server do
+  let(:input) { StringIO.new }
+  let(:output) { StringIO.new }
+  let(:error) { StringIO.new }
+  let(:server) { described_class.new(input, output, error) }
+
+  describe '#initialize' do
+    it 'sets up the server with proper streams' do
+      expect(server).to be_a(Lantae::LSP::Server)
+      expect(server.logger).to be_a(Logger)
+      expect(server.documents).to eq({})
+      expect(server.capabilities).to eq({})
+    end
+
+    it 'initializes provider manager and tools' do
+      expect(server.provider_manager).to be_a(ProviderManager)
+    end
+  end
+
+  describe 'request handling' do
+    def create_request(method, params = {}, id = 1)
+      {
+        jsonrpc: '2.0',
+        id: id,
+        method: method,
+        params: params
+      }
+    end
+
+    def send_request(request)
+      message = JSON.generate(request)
+      input.string = "Content-Length: #{message.bytesize}\r\n\r\n#{message}"
+      input.rewind
+      server.send(:handle_message)
+    end
+
+    def parse_response
+      output.rewind
+      response_data = output.read
+      
+      if response_data =~ /Content-Length: (\d+)\r\n\r\n(.+)/m
+        content_length = $1.to_i
+        content = $2[0...content_length]
+        JSON.parse(content)
+      end
+    end
+
+    describe 'initialize request' do
+      it 'responds with server capabilities' do
+        request = create_request('initialize', {
+          processId: Process.pid,
+          capabilities: {},
+          rootUri: 'file:///workspace'
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        expect(response['id']).to eq(1)
+        expect(response['result']['capabilities']).to include(
+          'textDocumentSync' => hash_including('openClose' => true),
+          'completionProvider' => hash_including('resolveProvider' => true),
+          'hoverProvider' => true,
+          'codeActionProvider' => hash_including('codeActionKinds' => array_including('refactor')),
+          'documentFormattingProvider' => true
+        )
+        expect(response['result']['serverInfo']).to include(
+          'name' => 'Lantae LSP Server',
+          'version' => '1.0.0'
+        )
+      end
+    end
+
+    describe 'textDocument/didOpen' do
+      it 'stores the document in memory' do
+        request = create_request('textDocument/didOpen', {
+          textDocument: {
+            uri: 'file:///test.rb',
+            languageId: 'ruby',
+            version: 1,
+            text: "def hello\n  puts 'world'\nend"
+          }
+        })
+        
+        send_request(request)
+        
+        expect(server.documents['file:///test.rb']).to include(
+          uri: 'file:///test.rb',
+          language_id: 'ruby',
+          version: 1,
+          content: "def hello\n  puts 'world'\nend"
+        )
+      end
+
+      it 'triggers document analysis' do
+        expect(server).to receive(:analyze_document).with('file:///test.rb')
+        
+        request = create_request('textDocument/didOpen', {
+          textDocument: {
+            uri: 'file:///test.rb',
+            languageId: 'ruby',
+            version: 1,
+            text: "def test\nend"
+          }
+        })
+        
+        send_request(request)
+      end
+    end
+
+    describe 'textDocument/didChange' do
+      before do
+        server.documents['file:///test.rb'] = {
+          uri: 'file:///test.rb',
+          language_id: 'ruby',
+          version: 1,
+          content: "def hello\n  puts 'world'\nend"
+        }
+      end
+
+      it 'updates document content with full text' do
+        request = create_request('textDocument/didChange', {
+          textDocument: { uri: 'file:///test.rb', version: 2 },
+          contentChanges: [{ text: "def hello\n  puts 'universe'\nend" }]
+        })
+        
+        send_request(request)
+        
+        expect(server.documents['file:///test.rb'][:content]).to eq("def hello\n  puts 'universe'\nend")
+        expect(server.documents['file:///test.rb'][:version]).to eq(2)
+      end
+
+      it 'handles incremental changes' do
+        request = create_request('textDocument/didChange', {
+          textDocument: { uri: 'file:///test.rb', version: 2 },
+          contentChanges: [{
+            range: {
+              start: { line: 1, character: 8 },
+              end: { line: 1, character: 15 }
+            },
+            text: "'universe'"
+          }]
+        })
+        
+        send_request(request)
+        
+        expect(server.documents['file:///test.rb'][:content]).to include("'universe'")
+      end
+    end
+
+    describe 'textDocument/completion' do
+      before do
+        server.documents['file:///test.rb'] = {
+          uri: 'file:///test.rb',
+          language_id: 'ruby',
+          version: 1,
+          content: "# Generated by Lantae AI v1.0.0\ndef hello\n  \nend"
+        }
+      end
+
+      it 'returns completion items' do
+        request = create_request('textDocument/completion', {
+          textDocument: { uri: 'file:///test.rb' },
+          position: { line: 2, character: 2 }
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        expect(response['result']).to include('isIncomplete' => false)
+        expect(response['result']['items']).to be_an(Array)
+      end
+
+      it 'includes AI completions for Lantae files' do
+        request = create_request('textDocument/completion', {
+          textDocument: { uri: 'file:///test.rb' },
+          position: { line: 2, character: 2 }
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        ai_items = response['result']['items'].select { |item| item['label'].include?('Lantae') }
+        expect(ai_items).not_to be_empty
+        expect(ai_items.first).to include('label', 'kind', 'detail')
+      end
+    end
+
+    describe 'textDocument/hover' do
+      before do
+        server.documents['file:///test.rb'] = {
+          uri: 'file:///test.rb',
+          language_id: 'ruby',
+          version: 1,
+          content: "def fibonacci(n)\n  return n if n <= 1\n  fibonacci(n-1) + fibonacci(n-2)\nend"
+        }
+      end
+
+      it 'returns hover information for valid position' do
+        request = create_request('textDocument/hover', {
+          textDocument: { uri: 'file:///test.rb' },
+          position: { line: 0, character: 5 } # hover over 'fibonacci'
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        expect(response['result']).to include('contents')
+      end
+
+      it 'returns null for invalid position' do
+        request = create_request('textDocument/hover', {
+          textDocument: { uri: 'file:///test.rb' },
+          position: { line: 10, character: 0 } # out of bounds
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        expect(response['result']).to be_nil
+      end
+    end
+
+    describe 'textDocument/codeAction' do
+      before do
+        server.documents['file:///test.rb'] = {
+          uri: 'file:///test.rb',
+          language_id: 'ruby',
+          version: 1,
+          content: "# Generated by Lantae AI v1.0.0\ndef complex_method\n  # TODO: refactor this\n  x = 1\n  y = 2\n  z = x + y\n  return z\nend"
+        }
+      end
+
+      it 'returns code actions for selection' do
+        request = create_request('textDocument/codeAction', {
+          textDocument: { uri: 'file:///test.rb' },
+          range: {
+            start: { line: 1, character: 0 },
+            end: { line: 7, character: 3 }
+          },
+          context: { diagnostics: [] }
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        expect(response['result']).to be_an(Array)
+        expect(response['result']).not_to be_empty
+      end
+
+      it 'includes AI actions for Lantae files' do
+        request = create_request('textDocument/codeAction', {
+          textDocument: { uri: 'file:///test.rb' },
+          range: {
+            start: { line: 1, character: 0 },
+            end: { line: 7, character: 3 }
+          },
+          context: { diagnostics: [] }
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        ai_actions = response['result'].select { |a| 
+          a['title'].include?('🤖') || a['title'].include?('🚀') || 
+          a['title'].include?('🧪') || a['title'].include?('📝') || 
+          a['title'].include?('🔍')
+        }
+        expect(ai_actions.size).to be >= 4 # refactor, optimize, test, docs
+      end
+    end
+
+    describe 'textDocument/formatting' do
+      before do
+        server.documents['file:///test.rb'] = {
+          uri: 'file:///test.rb',
+          language_id: 'ruby',
+          version: 1,
+          content: "def unformatted\nputs 'hello'\n    end"
+        }
+      end
+
+      it 'returns formatting edits' do
+        request = create_request('textDocument/formatting', {
+          textDocument: { uri: 'file:///test.rb' },
+          options: { tabSize: 2, insertSpaces: true }
+        })
+        
+        send_request(request)
+        response = parse_response
+        
+        expect(response['result']).to be_an(Array)
+      end
+    end
+
+    describe 'shutdown and exit' do
+      it 'handles shutdown request' do
+        request = create_request('shutdown')
+        
+        send_request(request)
+        response = parse_response
+        
+        expect(response['result']).to be_nil
+      end
+
+      it 'exits cleanly after shutdown' do
+        # First shutdown
+        shutdown_request = create_request('shutdown')
+        send_request(shutdown_request)
+        
+        # Then exit
+        exit_request = create_request('exit', {}, nil) # exit is a notification
+        expect { send_request(exit_request) }.to raise_error(SystemExit) do |error|
+          expect(error.status).to eq(0)
+        end
+      end
+    end
+  end
+
+  describe 'document analysis' do
+    it 'detects Lantae-generated files' do
+      tests = [
+        { content: "# Generated by Lantae AI v1.0.0", expected: true },
+        { content: "# _lantae_metadata = {}", expected: true },
+        { content: "// Context: {\"tool\":\"lantae\"}", expected: true },
+        { content: "def regular_code\nend", expected: false }
+      ]
+      
+      tests.each do |test|
+        result = server.send(:lantae_generated?, 'file:///test.rb', test[:content])
+        expect(result).to eq(test[:expected]), "Failed for content: #{test[:content]}"
+      end
+    end
+
+    it 'sends diagnostics for security issues' do
+      server.documents['file:///test.rb'] = {
+        uri: 'file:///test.rb',
+        language_id: 'ruby',
+        version: 1,
+        content: "def login(user, password)\n  puts \"Password: \#{password}\"\nend"
+      }
+      
+      expect(server).to receive(:send_notification).with(
+        'textDocument/publishDiagnostics',
+        hash_including(
+          uri: 'file:///test.rb',
+          diagnostics: array_including(
+            hash_including(
+              message: match(/security/i),
+              severity: 1
+            )
+          )
+        )
+      )
+      
+      server.send(:analyze_document, 'file:///test.rb')
+    end
+  end
+
+  describe 'error handling' do
+    def create_request(method, params = {}, id = 1)
+      {
+        jsonrpc: '2.0',
+        id: id,
+        method: method,
+        params: params
+      }
+    end
+
+    def send_request(request)
+      message = JSON.generate(request)
+      input.string = "Content-Length: #{message.bytesize}\r\n\r\n#{message}"
+      input.rewind
+      server.send(:handle_message)
+    end
+
+    def parse_response
+      output.rewind
+      response_data = output.read
+      
+      if response_data =~ /Content-Length: (\d+)\r\n\r\n(.+)/m
+        content_length = $1.to_i
+        content = $2[0...content_length]
+        JSON.parse(content)
+      end
+    end
+
+    it 'handles malformed JSON gracefully' do
+      input.string = "Content-Length: 10\r\n\r\n{invalid"
+      input.rewind
+      
+      expect { server.send(:handle_message) }.not_to raise_error
+    end
+
+    it 'responds with error for unknown methods' do
+      request = create_request('unknown/method', {}, 1)
+      
+      send_request(request)
+      response = parse_response
+      
+      expect(response['error']).to include(
+        'code' => -32601,
+        'message' => match(/Method not found/)
+      )
+    end
+  end
+end

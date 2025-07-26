@@ -1,0 +1,20 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+require_relative '../lib/ruby/lsp/server'
+
+# Configure logging
+if ENV['LANTAE_LSP_LOG']
+  log_file = File.open(ENV['LANTAE_LSP_LOG'], 'a')
+  log_file.sync = true
+  server = Lantae::LSP::Server.new(STDIN, STDOUT, log_file)
+else
+  server = Lantae::LSP::Server.new
+end
+
+# Handle signals gracefully
+trap('INT') { server.send(:handle_shutdown, {}) }
+trap('TERM') { server.send(:handle_shutdown, {}) }
+
+# Run the server
+server.run

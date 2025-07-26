@@ -1,5 +1,6 @@
 require 'json'
 require 'logger'
+require_relative 'task_analyzer'
 
 class PlanningAgent
   attr_reader :provider_manager, :tool_manager, :task_analyzer, :logger
