@@ -11,7 +11,11 @@ class TaskDatabase
   end
 
   def record_task_execution(task, execution_result)
-    @db.execute(<<-SQL, 
+    @db.execute(<<-SQL,
+      INSERT INTO task_executions 
+      (description, complexity_score, context, success, attempts, issues, output, timestamp)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    SQL
       task.description,
       task.complexity&.score || 0,
       JSON.generate(task.context),
@@ -21,10 +25,6 @@ class TaskDatabase
       execution_result.output.to_s[0..1000], # Limit output size
       Time.now.to_i
     )
-      INSERT INTO task_executions 
-      (description, complexity_score, context, success, attempts, issues, output, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    SQL
   end
 
   def get_similar_tasks(task_description, limit = 10)
