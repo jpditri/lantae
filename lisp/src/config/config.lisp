@@ -34,6 +34,14 @@
 (defvar *config-file* nil
   "Currently loaded configuration file")
 
+;;; String utilities
+(defun split-string (string delimiter)
+  "Split string by delimiter character"
+  (loop for i = 0 then (1+ j)
+        as j = (position delimiter string :start i)
+        collect (subseq string i j)
+        while j))
+
 ;;; Configuration access utilities
 (defun get-config (key &optional default)
   "Get configuration value with dotted key support"
@@ -151,7 +159,8 @@
            ("AWS_REGION" . :region))))
     
     (dolist (mapping env-mappings)
-      (let ((env-value (uiop:getenv (car mapping))))
+      (let ((env-value #+sbcl (sb-ext:posix-getenv (car mapping))
+                       #-sbcl nil))
         (when env-value
           (set-config (cdr mapping) (parse-env-value env-value)))))))
 
@@ -231,13 +240,6 @@
             (format t "Config watcher error: ~A~%" e)))))))
 
 ;;; Utility functions
-(defun split-string (string delimiter)
-  "Split string by delimiter character"
-  (loop for i = 0 then (1+ j)
-        as j = (position delimiter string :start i)
-        collect (subseq string i j)
-        while j))
-
 (defun merge-plists (plist1 plist2)
   "Merge two property lists, with plist2 taking precedence"
   (let ((result (copy-list plist1)))

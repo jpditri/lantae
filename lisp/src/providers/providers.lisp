@@ -168,7 +168,7 @@
                       (handler-case
                           (ollama-list-models base-url)
                         (error () '(:status :unhealthy))
-                        (:no-error (models) '(:status :healthy :models-count ,(length models)))))
+                        (:no-error (models) `(:status :healthy :models-count ,(length models)))))
    :capabilities-fn (lambda ()
                       '(:streaming nil :tools t :max-tokens 8192))
    :config `(:base-url ,base-url)))
@@ -240,9 +240,11 @@
   (register-provider (make-ollama-provider))
   
   ;; Register cloud providers if API keys are available
-  (let ((openai-key (or (uiop:getenv "OPENAI_API_KEY") 
+  (let ((openai-key (or #+sbcl (sb-ext:posix-getenv "OPENAI_API_KEY")
+                        #-sbcl nil
                         (get-secret-key "openai")))
-        (anthropic-key (or (uiop:getenv "ANTHROPIC_API_KEY")
+        (anthropic-key (or #+sbcl (sb-ext:posix-getenv "ANTHROPIC_API_KEY")
+                          #-sbcl nil
                           (get-secret-key "anthropic"))))
     
     (when openai-key
@@ -258,6 +260,41 @@
   ;; This would integrate with AWS Secrets Manager or similar
   (declare (ignore provider))
   nil)
+
+;;; Provider-specific implementations (placeholders)
+(defun ollama-chat (base-url model messages temperature)
+  "Send chat request to Ollama API"
+  (declare (ignore base-url model messages temperature))
+  ;; Placeholder - would use HTTP client to call Ollama API
+  '(:content "This is a placeholder response from Ollama"))
+
+(defun ollama-list-models (base-url)
+  "List available Ollama models"
+  (declare (ignore base-url))
+  ;; Placeholder - would fetch from Ollama API
+  '("cogito:latest" "llama2:latest" "mistral:latest"))
+
+(defun openai-chat (api-key model messages temperature)
+  "Send chat request to OpenAI API"
+  (declare (ignore api-key model messages temperature))
+  ;; Placeholder - would use HTTP client to call OpenAI API
+  '(:content "This is a placeholder response from OpenAI"))
+
+(defun openai-list-models ()
+  "List available OpenAI models"
+  ;; Placeholder - would fetch from OpenAI API
+  '("gpt-4" "gpt-3.5-turbo"))
+
+(defun anthropic-chat (api-key model messages temperature)
+  "Send chat request to Anthropic API"
+  (declare (ignore api-key model messages temperature))
+  ;; Placeholder - would use HTTP client to call Anthropic API
+  '(:content "This is a placeholder response from Anthropic"))
+
+(defun anthropic-list-models ()
+  "List available Anthropic models"
+  ;; Placeholder
+  '("claude-3-opus" "claude-3-sonnet" "claude-3-haiku"))
 
 ;;; Monadic error handling utilities
 (defstruct result

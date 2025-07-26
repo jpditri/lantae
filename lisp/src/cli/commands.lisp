@@ -38,10 +38,17 @@
   examples)
 
 ;;; Command registration macros
-(defmacro defcommand (name (&rest args) description &key usage examples completion &body body)
+(defmacro defcommand (name args description &rest body-and-options)
   "Define a new command with macro support"
-  (let ((cmd-name (string-downcase (string name)))
-        (function-name (intern (format nil "COMMAND-~A" (string-upcase name)))))
+  (let* ((options (loop for (key value) on body-and-options by #'cddr
+                        while (keywordp key)
+                        collect key collect value))
+         (body (nthcdr (length options) body-and-options))
+         (usage (getf options :usage))
+         (examples (getf options :examples))
+         (completion (getf options :completion))
+         (cmd-name (string-downcase (string name)))
+         (function-name (intern (format nil "COMMAND-~A" (string-upcase name)))))
     `(progn
        ;; Define the command function
        (defun ,function-name ,args

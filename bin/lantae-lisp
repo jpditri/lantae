@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Lantae LISP CLI Launcher
+# This script loads and runs the Lantae LISP implementation
+
+# Find the directory containing this script
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+LISP_DIR="$SCRIPT_DIR/../lisp"
+
+# Check if we have arguments (non-interactive mode)
+if [ $# -gt 0 ]; then
+    # Non-interactive mode - execute command and exit
+    # Build the argument list for LISP
+    ARGS=""
+    for arg in "$@"; do
+        ARGS="$ARGS \"$arg\""
+    done
+    
+    exec sbcl --noinform --disable-debugger --load "$LISP_DIR/lantae.lisp" \
+              --load "$LISP_DIR/src/config/config.lisp" \
+              --load "$LISP_DIR/src/providers/providers.lisp" \
+              --load "$LISP_DIR/src/cli/commands.lisp" \
+              --eval "(in-package :lantae)" \
+              --eval "(handler-case (progn (main (list $ARGS)) (sb-ext:exit :code 0)) (error (e) (format *error-output* \"Error: ~A~%\" e) (sb-ext:exit :code 1)))" \
+              --quit
+else
+    # Interactive mode - start REPL
+    cd "$LISP_DIR"
+    exec sbcl --load "run-interactive.lisp"
+fi
