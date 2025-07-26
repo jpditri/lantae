@@ -1,0 +1,141 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Lantae Prompt",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#directives"
+    },
+    {
+      "include": "#variables"
+    },
+    {
+      "include": "#code-blocks"
+    },
+    {
+      "include": "#inline-code"
+    },
+    {
+      "include": "#emphasis"
+    },
+    {
+      "include": "#links"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.lantae",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.lantae",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "directives": {
+      "patterns": [
+        {
+          "name": "keyword.control.directive.lantae",
+          "match": "^\\s*@(provider|model|temperature|system|user|assistant|context|format|style|tone|language|output)\\b",
+          "captures": {
+            "1": {
+              "name": "entity.name.function.directive.lantae"
+            }
+          }
+        }
+      ]
+    },
+    "variables": {
+      "patterns": [
+        {
+          "name": "variable.other.lantae",
+          "match": "\\$\\{[^}]+\\}",
+          "captures": {
+            "0": {
+              "name": "punctuation.definition.variable.lantae"
+            }
+          }
+        },
+        {
+          "name": "variable.other.lantae",
+          "match": "\\$[a-zA-Z_][a-zA-Z0-9_]*",
+          "captures": {
+            "0": {
+              "name": "punctuation.definition.variable.lantae"
+            }
+          }
+        }
+      ]
+    },
+    "code-blocks": {
+      "patterns": [
+        {
+          "name": "markup.fenced_code.block.markdown",
+          "begin": "^\\s*```([a-zA-Z0-9_+-]*)",
+          "end": "^\\s*```",
+          "beginCaptures": {
+            "1": {
+              "name": "fenced_code.block.language.lantae"
+            }
+          },
+          "patterns": [
+            {
+              "include": "source.js"
+            },
+            {
+              "include": "source.python"
+            },
+            {
+              "include": "source.ruby"
+            },
+            {
+              "include": "source.go"
+            },
+            {
+              "include": "source.rust"
+            }
+          ]
+        }
+      ]
+    },
+    "inline-code": {
+      "patterns": [
+        {
+          "name": "markup.inline.raw.lantae",
+          "match": "`[^`]*`"
+        }
+      ]
+    },
+    "emphasis": {
+      "patterns": [
+        {
+          "name": "markup.bold.lantae",
+          "match": "\\*\\*[^*]+\\*\\*"
+        },
+        {
+          "name": "markup.italic.lantae",
+          "match": "\\*[^*]+\\*"
+        },
+        {
+          "name": "markup.underline.lantae",
+          "match": "__[^_]+__"
+        }
+      ]
+    },
+    "links": {
+      "patterns": [
+        {
+          "name": "markup.underline.link.lantae",
+          "match": "https?://[^\\s]+"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.lantae"
+}

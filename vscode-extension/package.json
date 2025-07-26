@@ -1,0 +1,276 @@
+{
+  "name": "lantae-vscode",
+  "displayName": "Lantae AI Assistant",
+  "description": "VS Code extension for Lantae AI assistant with LSP support",
+  "version": "1.0.0",
+  "publisher": "lantae",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jpditri/lantae"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "AI",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "ai",
+    "assistant",
+    "ollama",
+    "openai",
+    "anthropic",
+    "lsp",
+    "language-server"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "lantae-prompt",
+        "aliases": ["Lantae Prompt", "lantae"],
+        "extensions": [".lantae", ".lnt"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lantae-prompt",
+        "scopeName": "source.lantae",
+        "path": "./syntaxes/lantae.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "lantae.chat",
+        "title": "Chat with Lantae",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.explainCode",
+        "title": "Explain Selected Code",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.optimizeCode",
+        "title": "Optimize Selected Code",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.generateTests",
+        "title": "Generate Tests for Code",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.switchProvider",
+        "title": "Switch AI Provider",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.switchModel",
+        "title": "Switch AI Model",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.showStatus",
+        "title": "Show Status",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.startLSP",
+        "title": "Start Lantae LSP Server",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.stopLSP",
+        "title": "Stop Lantae LSP Server",
+        "category": "Lantae"
+      },
+      {
+        "command": "lantae.restartLSP",
+        "title": "Restart Lantae LSP Server",
+        "category": "Lantae"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorHasSelection",
+          "command": "lantae.explainCode",
+          "group": "lantae@1"
+        },
+        {
+          "when": "editorHasSelection",
+          "command": "lantae.optimizeCode",
+          "group": "lantae@2"
+        },
+        {
+          "when": "editorHasSelection",
+          "command": "lantae.generateTests",
+          "group": "lantae@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "lantae.chat"
+        },
+        {
+          "command": "lantae.explainCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "lantae.optimizeCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "lantae.generateTests",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "lantae.chat",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l"
+      },
+      {
+        "command": "lantae.explainCode",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorHasSelection"
+      }
+    ],
+    "configuration": {
+      "title": "Lantae",
+      "properties": {
+        "lantae.provider": {
+          "type": "string",
+          "enum": ["ollama", "openai", "anthropic", "bedrock", "gemini", "mistral"],
+          "default": "ollama",
+          "description": "Default AI provider to use"
+        },
+        "lantae.model": {
+          "type": "string",
+          "default": "cogito:latest",
+          "description": "Default model to use"
+        },
+        "lantae.temperature": {
+          "type": "number",
+          "default": 0.1,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Temperature for AI responses"
+        },
+        "lantae.enableLSP": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Lantae Language Server Protocol support"
+        },
+        "lantae.lspPort": {
+          "type": "number",
+          "default": 7777,
+          "description": "Port for Lantae LSP server"
+        },
+        "lantae.autoStartLSP": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start LSP server when extension activates"
+        },
+        "lantae.showInlineHints": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show inline AI hints and suggestions"
+        },
+        "lantae.enableCodeActions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable AI-powered code actions (quick fixes)"
+        },
+        "lantae.enableCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable AI-powered code completion"
+        },
+        "lantae.enableDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable AI-powered diagnostics"
+        },
+        "lantae.chatViewLocation": {
+          "type": "string",
+          "enum": ["sidebar", "panel", "editor"],
+          "default": "sidebar",
+          "description": "Where to show the chat interface"
+        },
+        "lantae.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug logging"
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "lantaeChat",
+          "name": "Lantae Chat",
+          "when": "config.lantae.chatViewLocation == sidebar"
+        },
+        {
+          "id": "lantaeStatus",
+          "name": "Lantae Status",
+          "when": "config.lantae.enableLSP"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "lantae",
+          "title": "Lantae AI",
+          "icon": "$(robot)"
+        }
+      ]
+    },
+    "snippets": [
+      {
+        "language": "lantae-prompt",
+        "path": "./snippets/lantae.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4",
+    "@vscode/test-electron": "^2.2.0",
+    "@vscode/vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.0.2",
+    "ws": "^8.11.0",
+    "axios": "^1.2.0"
+  },
+  "activationEvents": [
+    "onLanguage:lantae-prompt",
+    "onCommand:lantae.chat",
+    "onStartupFinished"
+  ]
+}

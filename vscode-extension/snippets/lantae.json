@@ -1,0 +1,225 @@
+{
+  "System Message": {
+    "prefix": "system",
+    "body": [
+      "@system",
+      "${1:You are a helpful assistant. Answer questions accurately and concisely.}",
+      "",
+      "$0"
+    ],
+    "description": "Create a system message directive"
+  },
+  "User Message": {
+    "prefix": "user",
+    "body": [
+      "@user",
+      "${1:Enter your question or request here}",
+      "",
+      "$0"
+    ],
+    "description": "Create a user message directive"
+  },
+  "Assistant Message": {
+    "prefix": "assistant",
+    "body": [
+      "@assistant",
+      "${1:This is the assistant's response}",
+      "",
+      "$0"
+    ],
+    "description": "Create an assistant message directive"
+  },
+  "Provider Selection": {
+    "prefix": "provider",
+    "body": [
+      "@provider ${1|ollama,openai,anthropic,bedrock,gemini,mistral|}",
+      "$0"
+    ],
+    "description": "Set the AI provider"
+  },
+  "Model Selection": {
+    "prefix": "model",
+    "body": [
+      "@model ${1:cogito:latest}",
+      "$0"
+    ],
+    "description": "Set the AI model"
+  },
+  "Temperature Setting": {
+    "prefix": "temperature",
+    "body": [
+      "@temperature ${1:0.1}",
+      "$0"
+    ],
+    "description": "Set the response temperature"
+  },
+  "Context Block": {
+    "prefix": "context",
+    "body": [
+      "@context",
+      "${1:Provide relevant context or background information here}",
+      "",
+      "$0"
+    ],
+    "description": "Add context information"
+  },
+  "Code Analysis": {
+    "prefix": "analyze",
+    "body": [
+      "@system",
+      "You are a code analysis expert. Analyze the following code for:",
+      "- Potential bugs and issues",
+      "- Performance optimizations",
+      "- Best practices violations",
+      "- Security vulnerabilities",
+      "",
+      "@user",
+      "Analyze this ${1:language} code:",
+      "",
+      "```${1:language}",
+      "${2:// Insert code here}",
+      "```",
+      "",
+      "$0"
+    ],
+    "description": "Template for code analysis"
+  },
+  "Code Generation": {
+    "prefix": "generate",
+    "body": [
+      "@system",
+      "You are a coding expert. Generate clean, well-documented ${1:language} code that follows best practices.",
+      "",
+      "@user",
+      "Generate ${1:language} code to ${2:describe the functionality}:",
+      "",
+      "Requirements:",
+      "- ${3:Requirement 1}",
+      "- ${4:Requirement 2}",
+      "",
+      "$0"
+    ],
+    "description": "Template for code generation"
+  },
+  "Debugging Help": {
+    "prefix": "debug",
+    "body": [
+      "@system",
+      "You are a debugging expert. Help identify and fix issues in the provided code.",
+      "",
+      "@context",
+      "Error message: ${1:error description}",
+      "Expected behavior: ${2:what should happen}",
+      "Actual behavior: ${3:what actually happens}",
+      "",
+      "@user",
+      "Help me debug this ${4:language} code:",
+      "",
+      "```${4:language}",
+      "${5:// Insert problematic code here}",
+      "```",
+      "",
+      "$0"
+    ],
+    "description": "Template for debugging assistance"
+  },
+  "Documentation Generation": {
+    "prefix": "docs",
+    "body": [
+      "@system",
+      "You are a documentation expert. Generate comprehensive documentation for the provided code.",
+      "",
+      "@user",
+      "Generate documentation for this ${1:language} code:",
+      "",
+      "```${1:language}",
+      "${2:// Insert code here}",
+      "```",
+      "",
+      "Include:",
+      "- Function/class descriptions",
+      "- Parameter explanations",
+      "- Return value descriptions",
+      "- Usage examples",
+      "- Any important notes or warnings",
+      "",
+      "$0"
+    ],
+    "description": "Template for documentation generation"
+  },
+  "Test Generation": {
+    "prefix": "test",
+    "body": [
+      "@system",
+      "You are a testing expert. Generate comprehensive unit tests for the provided code.",
+      "",
+      "@user",
+      "Generate unit tests for this ${1:language} code:",
+      "",
+      "```${1:language}",
+      "${2:// Insert code to test here}",
+      "```",
+      "",
+      "Requirements:",
+      "- Test all public methods/functions",
+      "- Include edge cases and error conditions",
+      "- Use appropriate testing framework for ${1:language}",
+      "- Include setup and teardown if needed",
+      "",
+      "$0"
+    ],
+    "description": "Template for test generation"
+  },
+  "Variable Substitution": {
+    "prefix": "var",
+    "body": [
+      "${${1:variable_name}}",
+      "$0"
+    ],
+    "description": "Insert a variable substitution"
+  },
+  "Multi-step Prompt": {
+    "prefix": "steps",
+    "body": [
+      "@system",
+      "You are an expert assistant. Follow these steps to complete the task:",
+      "",
+      "@user",
+      "Task: ${1:Describe the main task}",
+      "",
+      "Steps:",
+      "1. ${2:First step}",
+      "2. ${3:Second step}",
+      "3. ${4:Third step}",
+      "",
+      "Please complete each step and provide detailed explanations.",
+      "",
+      "$0"
+    ],
+    "description": "Template for multi-step instructions"
+  },
+  "Format Specification": {
+    "prefix": "format",
+    "body": [
+      "@format ${1|json,markdown,html,xml,csv,yaml|}",
+      "$0"
+    ],
+    "description": "Specify output format"
+  },
+  "Style Guide": {
+    "prefix": "style",
+    "body": [
+      "@style ${1|formal,casual,technical,creative,concise,detailed|}",
+      "$0"
+    ],
+    "description": "Set response style"
+  },
+  "Language Setting": {
+    "prefix": "language",
+    "body": [
+      "@language ${1:english}",
+      "$0"
+    ],
+    "description": "Set response language"
+  }
+}

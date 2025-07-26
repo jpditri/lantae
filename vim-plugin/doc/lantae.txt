@@ -1,0 +1,390 @@
+*lantae.txt*    Lantae AI Assistant Plugin for Vim/Neovim
+
+Author: Lantae Team
+License: MIT
+
+==============================================================================
+CONTENTS                                                     *lantae-contents*
+
+    1. Introduction .................... |lantae-introduction|
+    2. Installation .................... |lantae-installation|
+    3. Configuration ................... |lantae-configuration|
+    4. Commands ........................ |lantae-commands|
+    5. Key Mappings .................... |lantae-mappings|
+    6. Chat Interface .................. |lantae-chat|
+    7. Code Analysis ................... |lantae-code|
+    8. LSP Integration ................. |lantae-lsp|
+    9. Prompt Files .................... |lantae-prompts|
+    10. Troubleshooting ................ |lantae-troubleshooting|
+
+==============================================================================
+1. INTRODUCTION                                         *lantae-introduction*
+
+Lantae is a powerful AI assistant plugin for Vim and Neovim that provides
+intelligent code assistance, analysis, and chat capabilities. It supports
+multiple AI providers including Ollama (local), OpenAI, Anthropic, and others.
+
+Features:
+    - AI-powered code explanation and optimization
+    - Integrated chat interface
+    - Test generation and debugging assistance
+    - Language Server Protocol (LSP) support
+    - Custom prompt file format (.lantae)
+    - Multiple AI provider support
+
+==============================================================================
+2. INSTALLATION                                         *lantae-installation*
+
+Prerequisites:
+    - Vim 8.0+ or Neovim 0.5+
+    - Lantae CLI tool installed
+
+Install the Lantae CLI:
+>
+    npm install -g lantae
+    # or
+    gem install lantae
+<
+
+Using vim-plug:
+>
+    Plug 'lantae/vim-lantae'
+<
+
+Using Vundle:
+>
+    Plugin 'lantae/vim-lantae'
+<
+
+Manual installation:
+>
+    git clone https://github.com/lantae/vim-lantae ~/.vim/pack/plugins/start/lantae
+<
+
+For Neovim with Packer:
+>
+    use 'lantae/vim-lantae'
+<
+
+==============================================================================
+3. CONFIGURATION                                       *lantae-configuration*
+
+Global Variables                                    *lantae-global-variables*
+
+*g:lantae_provider*
+    Default AI provider to use.
+    Valid options: 'ollama', 'openai', 'anthropic', 'bedrock', 'gemini', 'mistral'
+    Default: 'ollama'
+
+*g:lantae_model*
+    Default model to use with the provider.
+    Default: 'cogito:latest'
+
+*g:lantae_temperature*
+    Temperature for AI responses (0.0-2.0, where 0 is deterministic).
+    Default: 0.1
+
+*g:lantae_enable_lsp*
+    Enable Language Server Protocol support (Neovim only).
+    Default: 1
+
+*g:lantae_lsp_port*
+    Port for Lantae LSP server.
+    Default: 7777
+
+*g:lantae_chat_window_position*
+    Position of chat window.
+    Valid options: 'right', 'left', 'top', 'bottom'
+    Default: 'right'
+
+*g:lantae_chat_window_size*
+    Size of chat window (columns for vertical, rows for horizontal).
+    Default: 60
+
+*g:lantae_enable_auto_complete*
+    Enable AI-powered auto-completion.
+    Default: 1
+
+*g:lantae_enable_diagnostics*
+    Enable AI-powered diagnostics.
+    Default: 1
+
+*g:lantae_debug*
+    Enable debug output.
+    Default: 0
+
+*g:lantae_no_mappings*
+    Disable default key mappings.
+    Default: 0
+
+Example configuration:
+>
+    let g:lantae_provider = 'openai'
+    let g:lantae_model = 'gpt-4'
+    let g:lantae_temperature = 0.3
+    let g:lantae_chat_window_position = 'bottom'
+<
+
+==============================================================================
+4. COMMANDS                                                 *lantae-commands*
+
+Chat Commands                                          *lantae-chat-commands*
+
+*:LantaeChat*
+    Open the Lantae chat interface.
+
+*:LantaeChatToggle*
+    Toggle the chat interface visibility.
+
+*:LantaeChatClear*
+    Clear the chat history.
+
+*:LantaeChatSend* {message}
+    Send a message to the AI.
+
+Code Analysis Commands                                *lantae-code-commands*
+
+*:LantaeExplain*
+    Explain the selected code or current function.
+
+*:LantaeOptimize*
+    Get optimization suggestions for selected code.
+
+*:LantaeGenerateTests*
+    Generate unit tests for selected code.
+
+*:LantaeDebug*
+    Get debugging help for selected code.
+
+*:LantaeDocument*
+    Generate documentation for selected code.
+
+Configuration Commands                               *lantae-config-commands*
+
+*:LantaeProvider* {provider}
+    Switch to a different AI provider.
+
+*:LantaeModel* {model}
+    Switch to a different model.
+
+*:LantaeStatus*
+    Show current status and configuration.
+
+*:LantaeProviders*
+    List available AI providers.
+
+*:LantaeModels*
+    List available models for current provider.
+
+LSP Commands                                            *lantae-lsp-commands*
+
+*:LantaeLSPStart*
+    Start the Lantae LSP server.
+
+*:LantaeLSPStop*
+    Stop the Lantae LSP server.
+
+*:LantaeLSPRestart*
+    Restart the Lantae LSP server.
+
+*:LantaeLSPStatus*
+    Show LSP server status.
+
+Prompt Commands                                      *lantae-prompt-commands*
+
+*:LantaePrompt* [template]
+    Create a new prompt file with optional template.
+
+==============================================================================
+5. KEY MAPPINGS                                             *lantae-mappings*
+
+Default key mappings (can be disabled with g:lantae_no_mappings):
+
+Chat mappings:
+    <leader>lc     Open chat interface
+    <leader>lt     Toggle chat interface
+    <leader>lx     Clear chat history
+
+Code analysis mappings (visual mode):
+    <leader>le     Explain selected code
+    <leader>lo     Optimize selected code
+    <leader>lg     Generate tests for code
+    <leader>ld     Debug selected code
+    <leader>lD     Document selected code
+
+Configuration mappings:
+    <leader>lp     List providers
+    <leader>lm     List models
+    <leader>ls     Show status
+
+LSP mappings:
+    <leader>lL     Start LSP server
+    <leader>lS     Stop LSP server
+    <leader>lR     Restart LSP server
+
+Prompt mappings:
+    <leader>lP     Create new prompt
+
+==============================================================================
+6. CHAT INTERFACE                                             *lantae-chat*
+
+The chat interface provides an interactive way to communicate with the AI.
+
+Chat Window Controls:
+    <CR>           Send current line as message
+    i              Enter input mode
+    o              Enter input mode (like i)
+    q              Close chat window
+    c              Clear chat history
+
+The chat window displays conversation history with timestamps and supports
+markdown-like formatting in responses.
+
+Features:
+    - Conversation history
+    - Async response handling
+    - Error handling and retry
+    - Export conversation
+
+==============================================================================
+7. CODE ANALYSIS                                             *lantae-code*
+
+Code analysis features help you understand, optimize, and debug your code.
+
+Available analysis types:
+
+*Code Explanation*
+    Select code and use :LantaeExplain to get detailed explanations of what
+    the code does, how it works, and any notable patterns or techniques used.
+
+*Code Optimization*
+    Use :LantaeOptimize to get suggestions for improving performance, 
+    readability, and maintainability of your code.
+
+*Test Generation*
+    :LantaeGenerateTests creates comprehensive unit tests for selected code,
+    including edge cases and error conditions.
+
+*Debugging Help*
+    :LantaeDebug provides debugging assistance, helping identify potential
+    issues and suggesting fixes.
+
+*Documentation Generation*
+    :LantaeDocument generates comprehensive documentation including function
+    descriptions, parameters, return values, and usage examples.
+
+All analysis results can be displayed in the chat interface or in new buffers
+depending on your configuration.
+
+==============================================================================
+8. LSP INTEGRATION                                             *lantae-lsp*
+
+Language Server Protocol integration provides real-time AI assistance
+(Neovim only).
+
+LSP Features:
+    - Real-time code analysis
+    - AI-powered diagnostics
+    - Intelligent auto-completion
+    - Code actions and quick fixes
+    - Hover information
+
+LSP Key Mappings (when attached):
+    K              Show hover information
+    gd             Go to definition
+    gr             Find references
+    <leader>la     Code actions
+    <leader>lf     Format buffer
+    <leader>lr     Rename symbol
+    <leader>ld     Show line diagnostics
+    [d             Previous diagnostic
+    ]d             Next diagnostic
+
+The LSP server must be started manually or will auto-start if configured.
+
+==============================================================================
+9. PROMPT FILES                                            *lantae-prompts*
+
+Lantae supports a custom prompt file format (.lantae) for structured
+AI interactions.
+
+Prompt File Syntax:
+
+Directives start with @ and control the AI interaction:
+
+    @provider {name}      Set AI provider
+    @model {name}         Set AI model  
+    @temperature {value}  Set response temperature
+    @system {content}     System message
+    @user {content}       User message
+    @assistant {content}  Assistant response
+    @context {content}    Additional context
+    @format {type}        Output format
+    @style {type}         Response style
+
+Example prompt file:
+>
+    @provider openai
+    @model gpt-4
+    @temperature 0.1
+
+    @system
+    You are a helpful coding assistant.
+
+    @user
+    Explain this Python function:
+
+    ```python
+    def fibonacci(n):
+        if n <= 1:
+            return n
+        return fibonacci(n-1) + fibonacci(n-2)
+    ```
+
+    @context
+    This is for a tutorial on algorithms.
+<
+
+Prompt File Commands (in .lantae buffers):
+    <leader>le     Execute prompt
+    <leader>lv     Validate prompt
+    <leader>lp     Preview prompt
+    <leader>lx     Export prompt
+
+==============================================================================
+10. TROUBLESHOOTING                                   *lantae-troubleshooting*
+
+Common Issues:
+
+*LSP Server Won't Start*
+    - Ensure Lantae CLI is installed: `lantae --version`
+    - Check if port 7777 is available
+    - Try restarting Neovim
+    - Check :messages for error details
+
+*Provider Connection Issues*
+    - Verify API keys are set correctly
+    - Check internet connection for cloud providers
+    - For Ollama, ensure server is running: `ollama serve`
+    - Use :LantaeStatus to check connection
+
+*Performance Issues*
+    - Disable real-time diagnostics if too slow
+    - Reduce temperature for faster responses
+    - Use local models (Ollama) for better performance
+
+*Command Not Found Errors*
+    - Ensure Lantae CLI is in your PATH
+    - Try full path: `which lantae`
+    - Reinstall if necessary
+
+Debug Mode:
+    Set g:lantae_debug = 1 for verbose output
+
+Getting Help:
+    - Check :messages for error details
+    - Use :LantaeStatus to check configuration
+    - Report issues on GitHub
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:
