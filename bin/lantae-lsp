@@ -3,13 +3,21 @@
 require 'bundler/setup'
 require_relative '../lib/ruby/lsp/server'
 
+# Parse command line arguments
+port = nil
+ARGV.each_with_index do |arg, i|
+  if arg == '--port' && ARGV[i + 1]
+    port = ARGV[i + 1].to_i
+  end
+end
+
 # Configure logging
 if ENV['LANTAE_LSP_LOG']
   log_file = File.open(ENV['LANTAE_LSP_LOG'], 'a')
   log_file.sync = true
-  server = Lantae::LSP::Server.new(STDIN, STDOUT, log_file)
+  server = Lantae::LSP::Server.new(STDIN, STDOUT, log_file, port: port)
 else
-  server = Lantae::LSP::Server.new
+  server = Lantae::LSP::Server.new(STDIN, STDOUT, STDERR, port: port)
 end
 
 # Handle signals gracefully

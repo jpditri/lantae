@@ -193,15 +193,14 @@ module Lantae
         end
 
         def build_server_command(port)
-          # Get the current Ruby executable and Lantae path
+          # Get the current Ruby executable and script path
           ruby_exe = RbConfig.ruby
-          lantae_lib = File.expand_path('../../', __dir__)
+          script_path = File.expand_path('../../../bin/lantae-lsp', __dir__)
           
           [
             ruby_exe,
-            '-I', lantae_lib,
-            '-r', 'lantae/lsp/server',
-            '-e', "Lantae::LSP::Server.new(port: #{port}).start"
+            script_path,
+            '--port', port.to_s
           ]
         end
 

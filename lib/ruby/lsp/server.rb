@@ -28,7 +28,7 @@ module Lantae
 
       attr_reader :logger, :documents, :capabilities, :provider_manager
 
-      def initialize(input = STDIN, output = STDOUT, error = STDERR)
+      def initialize(input = STDIN, output = STDOUT, error = STDERR, port: nil)
         @input = input
         @output = output
         @error = error
@@ -37,6 +37,8 @@ module Lantae
         @capabilities = {}
         @running = false
         @shutdown_requested = false
+        @port = port
+        @tcp_server = nil
         
         # Initialize AI providers for enhanced features
         @provider_manager = ProviderManager.new
@@ -56,7 +58,40 @@ module Lantae
 
       def run
         @running = true
-        logger.info "Starting LSP server..."
+        
+        if @port
+          run_tcp_server
+        else
+          run_stdio_server
+        end
+      end
+      
+      def run_tcp_server
+        logger.info "Starting LSP server on TCP port #{@port}..."
+        
+        @tcp_server = TCPServer.new('localhost', @port)
+        
+        while @running
+          begin
+            client = @tcp_server.accept
+            logger.info "Client connected"
+            
+            # Handle client in a separate thread
+            Thread.new(client) do |client_socket|
+              handle_tcp_client(client_socket)
+            end
+          rescue => e
+            logger.error "Error accepting client: #{e.message}"
+            break if !@running
+          end
+        end
+        
+        @tcp_server&.close
+        logger.info "LSP TCP server stopped"
+      end
+      
+      def run_stdio_server
+        logger.info "Starting LSP server on STDIO..."
         
         while @running && !@input.eof?
           begin
@@ -68,6 +103,29 @@ module Lantae
         end
         
         logger.info "LSP server stopped"
+      end
+      
+      def handle_tcp_client(client_socket)
+        # Set up temporary input/output for this client
+        old_input = @input
+        old_output = @output
+        
+        @input = client_socket
+        @output = client_socket
+        
+        begin
+          while @running && !client_socket.closed? && !client_socket.eof?
+            handle_message
+          end
+        rescue => e
+          logger.error "Error handling TCP client: #{e.message}"
+          logger.error e.backtrace.join("\n")
+        ensure
+          client_socket.close unless client_socket.closed?
+          @input = old_input
+          @output = old_output
+          logger.info "Client disconnected"
+        end
       end
 
       private
@@ -398,7 +456,14 @@ module Lantae
 
       def handle_shutdown(params)
         @shutdown_requested = true
+        @running = false
         logger.info "Shutdown requested"
+        
+        # Close TCP server if running
+        if @tcp_server
+          @tcp_server.close rescue nil
+        end
+        
         nil
       end
 
