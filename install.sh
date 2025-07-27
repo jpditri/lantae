@@ -79,13 +79,13 @@ EOF
 
 # Provider selection menu
 select_provider_setup() {
-    echo -e "${CYAN}Select your preferred LLM provider setup:${NC}"
-    echo ""
-    echo "1) 🏠 Local Only    - Ollama with local models (no API keys needed)"
-    echo "2) ☁️  Cloud Only    - External providers (OpenAI, Anthropic, etc.)"
-    echo "3) 🌐 Hybrid        - Both local and cloud providers"
-    echo "4) 📦 Minimal       - Just install Lantae, configure providers later"
-    echo ""
+    echo -e "${CYAN}Select your preferred LLM provider setup:${NC}" >&2
+    echo "" >&2
+    echo "1) 🏠 Local Only    - Ollama with local models (no API keys needed)" >&2
+    echo "2) ☁️  Cloud Only    - External providers (OpenAI, Anthropic, etc.)" >&2
+    echo "3) 🌐 Hybrid        - Both local and cloud providers" >&2
+    echo "4) 📦 Minimal       - Just install Lantae, configure providers later" >&2
+    echo "" >&2
     
     while true; do
         read -p "Enter your choice (1-4): " choice
@@ -107,7 +107,7 @@ select_provider_setup() {
                 return
                 ;;
             *) 
-                echo -e "${RED}Invalid choice. Please enter 1, 2, 3, or 4.${NC}"
+                echo -e "${RED}Invalid choice. Please enter 1, 2, 3, or 4.${NC}" >&2
                 ;;
         esac
     done
