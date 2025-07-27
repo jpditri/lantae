@@ -532,12 +532,116 @@ For optimal code generation:
   - Rust for systems programming with safety
   - JavaScript for async/web operations
 
+## 🌐 Multi-Language Implementations
+
+Lantae is available in multiple programming languages, each optimized for different use cases and ecosystems:
+
+### 📊 Implementation Status
+
+| Implementation | Branch | Status | Primary Use Case |
+|---------------|--------|--------|------------------|
+| **Ruby** | `main` | ✅ **Reference** | Full-featured CLI with complete ecosystem |
+| **LISP** | `lisp-implementation` | 🟡 **Partial** | Functional programming, research |
+| **Rust** | `rust-implementation` | 🔄 **Planned** | Performance, cross-platform binaries (Windows, Linux, macOS) |
+| **Node.js** | `nodejs-implementation` | 🔄 **Planned** | Web integration, JavaScript ecosystem |
+| **Python** | `python-implementation` | 🔄 **Planned** | Data science, ML workflows |
+
+### 🎯 LISP Implementation Status
+
+This branch contains the **LISP implementation** of Lantae, focusing on functional programming paradigms and symbolic computation.
+
+#### Current Features (🟡 Partial Implementation)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Basic REPL** | 🟡 | Functional but limited |
+| **Ollama Provider** | 🟡 | Basic connection working |
+| **Provider Switching** | 🟡 | Limited provider support |
+| **Model Selection** | 🟡 | Basic model switching |
+| **Mission Abort** | 🟡 | Simple abort mechanism |
+
+#### Planned Features (📋 Coming Soon)
+
+| Feature | Priority | Timeline |
+|---------|----------|----------|
+| **Full Provider Support** | High | Next sprint |
+| **Tool Integration** | Medium | Following sprint |
+| **Advanced Commands** | Medium | Phase 2 |
+| **MCP Protocol** | Low | Phase 3 |
+| **LSP Integration** | Low | Phase 3 |
+
+### 🚀 Getting Started with LISP Implementation
+
+#### Prerequisites
+- **SBCL** or **CCL** (Common Lisp implementation)
+- **Quicklisp** for package management
+- **Ollama** running locally
+
+#### Installation
+```bash
+# Clone LISP implementation
+git clone -b lisp-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+
+# Install dependencies (see LISP_QUICKSTART.md)
+sbcl --load quicklisp.lisp
+
+# Run Lantae LISP
+sbcl --load lantae.lisp
+```
+
+#### Usage Examples
+```lisp
+;; Start interactive session
+(lantae:start-repl)
+
+;; Single prompt
+(lantae:prompt "What is functional programming?")
+
+;; Switch provider
+(lantae:set-provider :ollama)
+
+;; Switch model
+(lantae:set-model "cogito:latest")
+```
+
+### 🔄 Feature Parity Matrix
+
+For a comprehensive view of feature implementation across all languages, see our [Feature Parity Document](docs/FEATURE_PARITY.md).
+
+#### Core Features Status
+
+| Feature | Ruby | LISP | Rust | Node.js | Python |
+|---------|------|------|------|---------|---------|
+| **Interactive REPL** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Provider Support** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Tool Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Planning Agent** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **MCP Protocol** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+
+#### Legend
+- ✅ **Implemented** - Feature fully functional
+- 🟡 **Partial** - Basic implementation, missing advanced features
+- ❌ **Missing** - Not implemented
+- 📋 **Planned** - Scheduled for implementation
+
+### 🔄 Cross-Implementation Compatibility
+
+All implementations share:
+- **Consistent CLI interface** - Same commands and options (when implemented)
+- **Compatible configuration** - Shared environment variables and config files
+- **Unified provider support** - Same API keys and provider switching
+- **Feature parity tracking** - Systematic feature implementation across languages
+
 ## 🔗 Links
 
 - [Ollama](https://ollama.com/) - Local LLM runtime
 - [OpenAI API](https://platform.openai.com/) - GPT models
 - [Anthropic API](https://www.anthropic.com/) - Claude models
 - [AWS Bedrock](https://aws.amazon.com/bedrock/) - Managed AI services
+- [Feature Parity Document](docs/FEATURE_PARITY.md) - Detailed cross-language status
+- [LISP Quickstart Guide](LISP_QUICKSTART.md) - LISP-specific setup instructions
 
 ---
 
