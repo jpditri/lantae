@@ -532,12 +532,97 @@ For optimal code generation:
   - Rust for systems programming with safety
   - JavaScript for async/web operations
 
+## 🌐 Multi-Language Implementations
+
+Lantae is available in multiple programming languages, each optimized for different use cases and ecosystems:
+
+### 📊 Implementation Status
+
+| Implementation | Branch | Status | Primary Use Case |
+|---------------|--------|--------|------------------|
+| **Ruby** | `main` | ✅ **Reference** | Full-featured CLI with complete ecosystem |
+| **LISP** | `lisp-implementation` | 🟡 **Partial** | Functional programming, research |
+| **Rust** | `rust-implementation` | 🔄 **Planned** | Performance, cross-platform binaries (Windows, Linux, macOS) |
+| **Node.js** | `nodejs-implementation` | 🔄 **Planned** | Web integration, JavaScript ecosystem |
+| **Python** | `python-implementation` | 🔄 **Planned** | Data science, ML workflows |
+
+### 🎯 Feature Parity Matrix
+
+For a comprehensive view of feature implementation across all languages, see our [Feature Parity Document](docs/FEATURE_PARITY.md).
+
+#### Core Features Status
+
+| Feature | Ruby | LISP | Rust | Node.js | Python |
+|---------|------|------|------|---------|---------|
+| **Interactive REPL** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Provider Support** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Tool Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Planning Agent** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **MCP Protocol** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+
+#### Legend
+- ✅ **Implemented** - Feature fully functional
+- 🟡 **Partial** - Basic implementation, missing advanced features
+- ❌ **Missing** - Not implemented
+- 📋 **Planned** - Scheduled for implementation
+
+### 🚀 Getting Started with Different Implementations
+
+#### Ruby (Reference Implementation)
+```bash
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+bundle install
+./lantae
+```
+
+#### LISP Implementation
+```bash
+git clone -b lisp-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+# See LISP_QUICKSTART.md for setup instructions
+```
+
+#### Rust Implementation (Coming Soon)
+```bash
+git clone -b rust-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/rust-lantae
+cargo build --release
+./target/release/lantae
+```
+
+#### Node.js Implementation (Coming Soon)
+```bash
+git clone -b nodejs-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/nodejs-lantae
+npm install
+npm start
+```
+
+#### Python Implementation (Coming Soon)
+```bash
+git clone -b python-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/python-lantae
+pip install -e .
+lantae
+```
+
+### 🔄 Cross-Implementation Compatibility
+
+All implementations share:
+- **Consistent CLI interface** - Same commands and options
+- **Compatible configuration** - Shared environment variables and config files
+- **Unified provider support** - Same API keys and provider switching
+- **Feature parity tracking** - Systematic feature implementation across languages
+
 ## 🔗 Links
 
 - [Ollama](https://ollama.com/) - Local LLM runtime
 - [OpenAI API](https://platform.openai.com/) - GPT models
 - [Anthropic API](https://www.anthropic.com/) - Claude models
 - [AWS Bedrock](https://aws.amazon.com/bedrock/) - Managed AI services
+- [Feature Parity Document](docs/FEATURE_PARITY.md) - Detailed cross-language status
 
 ---
 
