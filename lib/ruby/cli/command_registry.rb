@@ -8,6 +8,7 @@ require_relative 'commands/task_command'
 require_relative 'commands/conversation_command'
 require_relative 'commands/template_command'
 require_relative 'commands/cost_command'
+require_relative 'commands/uninstall_command'
 
 module Lantae
   module CLI
@@ -118,6 +119,7 @@ module Lantae
         register_command(Commands::ConversationCommand.new)
         register_command(Commands::TemplateCommand.new)
         register_command(Commands::CostCommand.new)
+        register_command(Commands::UninstallCommand.new)
         
         # Command aliases
         register_alias('h', 'help')
@@ -129,6 +131,8 @@ module Lantae
         register_alias('c', 'conversation')
         register_alias('conv', 'conversation')
         register_alias('tpl', 'template')
+        register_alias('rm', 'uninstall')
+        register_alias('remove', 'uninstall')
       end
     end
   end
