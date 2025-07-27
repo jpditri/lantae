@@ -1,6 +1,6 @@
 # Lantae Rust Implementation
 
-High-performance Rust implementation of Lantae with focus on speed, safety, and cross-platform compatibility.
+High-performance Rust implementation of Lantae with focus on speed, safety, and cross-platform compatibility. **Provides native Windows support** through cross-compilation, eliminating the need for a separate PowerShell implementation.
 
 ## 🦀 Rust Features
 
@@ -16,6 +16,8 @@ High-performance Rust implementation of Lantae with focus on speed, safety, and 
 - **Concurrency** - Safe parallel processing with async/await
 - **Cross-Compilation** - Build for any target from any platform
 - **Small Binaries** - Optimized release builds
+- **Native Windows Support** - Single binary, no runtime dependencies
+- **Package Manager Ready** - Chocolatey, Scoop, winget compatibility
 
 ## 🚀 Quick Start
 
@@ -50,6 +52,21 @@ cargo test
 # Check code
 cargo clippy
 cargo fmt
+```
+
+### Windows Installation
+```powershell
+# Install via Chocolatey (planned)
+choco install lantae
+
+# Install via Scoop (planned)
+scoop install lantae
+
+# Install via winget (planned)
+winget install lantae
+
+# Download binary directly
+Invoke-WebRequest -Uri "https://github.com/jpditri/lantae-cli/releases/latest/download/lantae-windows.exe" -OutFile "lantae.exe"
 ```
 
 ## 📖 Usage
@@ -198,11 +215,30 @@ cargo build
 # Release build (optimized)
 cargo build --release
 
-# Cross-compile for Windows
-cargo build --target x86_64-pc-windows-gnu
+# Cross-compile for Windows from Linux/macOS
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu
 
-# Cross-compile for macOS
-cargo build --target x86_64-apple-darwin
+# Cross-compile for macOS from Linux/Windows
+rustup target add x86_64-apple-darwin
+cargo build --release --target x86_64-apple-darwin
+
+# Cross-compile for Linux from macOS/Windows
+rustup target add x86_64-unknown-linux-gnu
+cargo build --release --target x86_64-unknown-linux-gnu
+```
+
+### Windows-Specific Builds
+```bash
+# Windows with GNU toolchain (recommended for cross-compilation)
+cargo build --release --target x86_64-pc-windows-gnu
+
+# Windows with MSVC toolchain (native Windows development)
+cargo build --release --target x86_64-pc-windows-msvc
+
+# Create Windows installer (planned)
+cargo install cargo-wix
+cargo wix --nocapture
 ```
 
 ### Testing
