@@ -3,6 +3,11 @@ require_relative 'commands/help_command'
 require_relative 'commands/provider_command'
 require_relative 'commands/model_command'
 require_relative 'commands/lsp_command'
+require_relative 'commands/squad_command'
+require_relative 'commands/task_command'
+require_relative 'commands/conversation_command'
+require_relative 'commands/template_command'
+require_relative 'commands/cost_command'
 
 module Lantae
   module CLI
@@ -108,12 +113,22 @@ module Lantae
         register_command(Commands::ProviderCommand.new)
         register_command(Commands::ModelCommand.new)
         register_command(Commands::LspCommand.new)
+        register_command(Commands::SquadCommand.new)
+        register_command(Commands::TaskCommand.new)
+        register_command(Commands::ConversationCommand.new)
+        register_command(Commands::TemplateCommand.new)
+        register_command(Commands::CostCommand.new)
         
         # Command aliases
         register_alias('h', 'help')
         register_alias('p', 'provider')
         register_alias('m', 'model')
         register_alias('l', 'lsp')
+        register_alias('s', 'squad')
+        register_alias('t', 'task')
+        register_alias('c', 'conversation')
+        register_alias('conv', 'conversation')
+        register_alias('tpl', 'template')
       end
     end
   end

@@ -108,7 +108,7 @@ Works with any LSP-compatible editor:
   "languageserver": {
     "lantae": {
       "command": "node",
-      "args": ["/path/to/ollama-code/lsp-server.js", "--stdio"],
+      "args": ["/path/to/lantae-cli/lsp-server.js", "--stdio"],
       "filetypes": ["javascript", "python", "go", "rust", "java", "cpp", "c", "html", "css", "sql", "sh", "yaml", "ruby", "php"],
       "rootPatterns": ["package.json", ".lantae-generated.json"]
     }
@@ -120,7 +120,7 @@ Works with any LSP-compatible editor:
 ```elisp
 (lsp-register-client
  (make-lsp-client 
-   :new-connection (lsp-stdio-connection '("node" "/path/to/ollama-code/lsp-server.js" "--stdio"))
+   :new-connection (lsp-stdio-connection '("node" "/path/to/lantae-cli/lsp-server.js" "--stdio"))
    :activation-fn (lsp-activate-on "javascript" "python" "go" "rust" "java" "cpp" "c" "html" "css" "sql" "sh" "yaml" "ruby" "php")
    :server-id 'lantae))
 ```

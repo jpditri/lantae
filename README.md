@@ -47,8 +47,8 @@ Lantae provides a unified interface to interact with various Large Language Mode
 
 ```bash
 # Clone the repository
-git clone https://github.com/jpditri/lantae.git
-cd lantae
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
 
 # Install Ruby dependencies
 bundle install

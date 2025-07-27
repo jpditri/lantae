@@ -51,7 +51,7 @@ Add to your `coc-settings.json`:
   "languageserver": {
     "lantae": {
       "command": "node",
-      "args": ["/path/to/ollama-code/lsp-server.js", "--stdio"],
+      "args": ["/path/to/lantae-cli/lsp-server.js", "--stdio"],
       "filetypes": ["javascript"],
       "rootPatterns": ["package.json"]
     }
@@ -63,7 +63,7 @@ Add to your `coc-settings.json`:
 Add to your Emacs configuration:
 ```elisp
 (lsp-register-client
- (make-lsp-client :new-connection (lsp-stdio-connection '("node" "/path/to/ollama-code/lsp-server.js" "--stdio"))
+ (make-lsp-client :new-connection (lsp-stdio-connection '("node" "/path/to/lantae-cli/lsp-server.js" "--stdio"))
                   :activation-fn (lsp-activate-on "javascript")
                   :server-id 'lantae))
 ```
@@ -75,7 +75,7 @@ Add to your LSP settings:
   "clients": {
     "lantae": {
       "enabled": true,
-      "command": ["node", "/path/to/ollama-code/lsp-server.js", "--stdio"],
+      "command": ["node", "/path/to/lantae-cli/lsp-server.js", "--stdio"],
       "selector": "source.js"
     }
   }
