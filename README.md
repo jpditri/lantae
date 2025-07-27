@@ -532,12 +532,156 @@ For optimal code generation:
   - Rust for systems programming with safety
   - JavaScript for async/web operations
 
+## 🌐 Multi-Language Implementations
+
+Lantae is available in multiple programming languages, each optimized for different use cases and ecosystems:
+
+### 📊 Implementation Status
+
+| Implementation | Branch | Status | Primary Use Case |
+|---------------|--------|--------|------------------|
+| **Ruby** | `main` | ✅ **Reference** | Full-featured CLI with complete ecosystem |
+| **LISP** | `lisp-implementation` | 🟡 **Partial** | Functional programming, research |
+| **Rust** | `rust-implementation` | 🔄 **Planned** | Performance, cross-platform binaries (Windows, Linux, macOS) |
+| **Node.js** | `nodejs-implementation` | 🔄 **Planned** | Web integration, JavaScript ecosystem |
+| **Python** | `python-implementation` | 🔄 **Planned** | Data science, ML workflows |
+
+### 🎯 Rust Implementation Status
+
+This branch contains the **Rust implementation** of Lantae, focusing on performance, memory safety, and cross-platform binary distribution including native Windows support.
+
+#### Planned Features (🔄 In Development)
+
+| Feature | Priority | Timeline | Notes |
+|---------|----------|----------|-------|
+| **High-Performance CLI** | High | Phase 1 | Zero-cost abstractions, optimized builds |
+| **Cross-Platform Binaries** | High | Phase 1 | Windows, Linux, macOS native executables |
+| **Provider Support** | High | Phase 1 | All major LLM providers with async/await |
+| **Memory Safety** | High | Phase 1 | Rust ownership system prevents crashes |
+| **Concurrent Processing** | Medium | Phase 1 | Safe parallel request handling |
+| **Windows MSI Installer** | Medium | Phase 2 | Professional Windows distribution |
+| **Package Managers** | Medium | Phase 2 | Chocolatey, Scoop, winget, Homebrew |
+| **Tool Integration** | Medium | Phase 2 | Cross-platform system tools |
+| **Small Binary Size** | Low | Phase 1 | Optimized release builds with LTO |
+
+#### Rust/Performance Advantages
+
+- **Zero-Cost Abstractions** - Performance without runtime overhead
+- **Memory Safety** - No null pointer exceptions or buffer overflows
+- **Native Windows Support** - Single binary, no runtime dependencies
+- **Cross-Compilation** - Build for any target from any platform
+- **Concurrency** - Safe parallel processing with async/await
+- **Small Binaries** - Optimized release builds under 10MB
+- **Package Manager Ready** - Distribution via multiple channels
+
+### 🚀 Getting Started with Rust Implementation
+
+#### Prerequisites
+- **Rust** 1.70+ (install via [rustup](https://rustup.rs/))
+- **Cargo** (included with Rust)
+- **Ollama** running locally
+
+#### Installation (Coming Soon)
+```bash
+# Clone Rust implementation
+git clone -b rust-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/rust-lantae
+
+# Build release version
+cargo build --release
+
+# Run Lantae
+./target/release/lantae
+```
+
+#### Cross-Platform Building
+```bash
+# Windows from Linux/macOS
+rustup target add x86_64-pc-windows-gnu
+cargo build --release --target x86_64-pc-windows-gnu
+
+# macOS from Linux/Windows  
+rustup target add x86_64-apple-darwin
+cargo build --release --target x86_64-apple-darwin
+
+# Linux from macOS/Windows
+rustup target add x86_64-unknown-linux-gnu
+cargo build --release --target x86_64-unknown-linux-gnu
+```
+
+#### Windows-Specific Installation (Planned)
+```powershell
+# Via Chocolatey
+choco install lantae
+
+# Via Scoop
+scoop install lantae
+
+# Via winget
+winget install lantae
+
+# Direct download
+Invoke-WebRequest -Uri "https://github.com/jpditri/lantae-cli/releases/latest/download/lantae-windows.exe" -OutFile "lantae.exe"
+```
+
+#### Usage Examples (Planned)
+```bash
+# Interactive mode
+lantae
+
+# Single prompt
+lantae "Explain Rust ownership"
+
+# High-performance mode
+lantae --fast-mode
+
+# Parallel processing
+lantae --parallel --batch prompts.txt
+
+# Cross-compilation info
+lantae --target-info
+```
+
+### 🔄 Feature Parity Matrix
+
+For a comprehensive view of feature implementation across all languages, see our [Feature Parity Document](docs/FEATURE_PARITY.md).
+
+#### Core Features Status
+
+| Feature | Ruby | LISP | Rust | Node.js | Python |
+|---------|------|------|------|---------|---------|
+| **Interactive REPL** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Provider Support** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Tool Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Planning Agent** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **MCP Protocol** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Cross-Platform Binaries** | ❌ | ❌ | 📋 | ❌ | ❌ |
+| **Windows Native Support** | ❌ | ❌ | 📋 | ❌ | ❌ |
+
+#### Legend
+- ✅ **Implemented** - Feature fully functional
+- 🟡 **Partial** - Basic implementation, missing advanced features
+- ❌ **Missing** - Not implemented
+- 📋 **Planned** - Scheduled for implementation
+
+### 🔄 Cross-Implementation Compatibility
+
+All implementations share:
+- **Consistent CLI interface** - Same commands and options (when implemented)
+- **Compatible configuration** - Shared environment variables and config files
+- **Unified provider support** - Same API keys and provider switching
+- **Feature parity tracking** - Systematic feature implementation across languages
+
 ## 🔗 Links
 
 - [Ollama](https://ollama.com/) - Local LLM runtime
 - [OpenAI API](https://platform.openai.com/) - GPT models
 - [Anthropic API](https://www.anthropic.com/) - Claude models
 - [AWS Bedrock](https://aws.amazon.com/bedrock/) - Managed AI services
+- [Feature Parity Document](docs/FEATURE_PARITY.md) - Detailed cross-language status
+- [Rust Documentation](https://doc.rust-lang.org/) - Rust language documentation
+- [Rust Implementation Details](rust-lantae/README.md) - Rust-specific documentation
 
 ---
 
