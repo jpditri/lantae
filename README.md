@@ -45,20 +45,37 @@ Lantae provides a unified interface to interact with various Large Language Mode
 
 ### Installation
 
+#### Standard Installation
 ```bash
 # Clone the repository
 git clone https://github.com/jpditri/lantae-cli.git
 cd lantae-cli
 
-# Install Ruby dependencies
+# Run automated installer
+./install.sh
+
+# Or manual installation:
 bundle install
-
-# Make executable
 chmod +x lantae
-
-# Run with default cogito model
 ./lantae
 ```
+
+#### 🍓 Raspberry Pi / ARM Installation
+For Raspberry Pi and other ARM devices, use the optimized installer:
+```bash
+# Clone the repository
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+
+# Run Raspberry Pi specific installer
+chmod +x scripts/install-raspberry-pi.sh
+./scripts/install-raspberry-pi.sh
+
+# Run Lantae
+./lantae-pi
+```
+
+**Note:** The Raspberry Pi installer uses system Ruby packages instead of compiling from source, which is much faster and more reliable on ARM devices.
 
 ## 📖 Usage
 
@@ -546,141 +563,7 @@ Lantae is available in multiple programming languages, each optimized for differ
 | **Node.js** | `nodejs-implementation` | 🔄 **Planned** | Web integration, JavaScript ecosystem |
 | **Python** | `python-implementation` | 🔄 **Planned** | Data science, ML workflows |
 
-### 🎯 Python Implementation Status
-
-This branch contains the **Python implementation** of Lantae, focusing on data science integration, machine learning workflows, and Python ecosystem compatibility.
-
-#### Planned Features (📋 Coming Soon)
-
-| Feature | Priority | Timeline | Notes |
-|---------|----------|----------|-------|
-| **CLI with Click** | High | Phase 1 | Modern Python CLI framework |
-| **Jupyter Integration** | High | Phase 1 | Notebook magic commands |
-| **Pandas Integration** | Medium | Phase 1 | Data analysis workflows |
-| **Provider Support** | High | Phase 1 | All major LLM providers |
-| **PyPI Package** | Medium | Phase 2 | Easy pip installation |
-| **Async Support** | Medium | Phase 1 | asyncio for concurrent operations |
-| **Tool Integration** | Medium | Phase 2 | Python ecosystem tools |
-| **Data Visualization** | Medium | Phase 2 | Matplotlib/Plotly integration |
-| **ML Pipeline Support** | Low | Phase 3 | scikit-learn integration |
-
-#### Python/Data Science Advantages
-
-- **Jupyter Magic Commands** - `%lantae` and `%%lantae` for notebooks
-- **Pandas Integration** - Analyze dataframes with AI assistance
-- **Scientific Computing** - NumPy, SciPy, scikit-learn compatibility
-- **Data Visualization** - Generate charts and plots from descriptions
-- **ML Workflows** - Integrate with existing ML pipelines
-- **Rich Ecosystem** - Access to 300k+ PyPI packages
-
-### 🚀 Getting Started with Python Implementation
-
-#### Prerequisites
-- **Python** 3.8+ (3.10+ recommended)
-- **pip** or **poetry** package manager
-- **Jupyter** (for notebook integration)
-- **Ollama** running locally
-
-#### Installation (Coming Soon)
-```bash
-# Clone Python implementation
-git clone -b python-implementation https://github.com/jpditri/lantae-cli.git
-cd lantae-cli/python-lantae
-
-# Install with pip
-pip install -e .
-
-# Or with poetry
-poetry install
-
-# Run CLI
-lantae
-```
-
-#### Usage Examples (Planned)
-```python
-# CLI usage
-from lantae import Lantae
-
-client = Lantae(provider='ollama', model='cogito:latest')
-response = await client.prompt('What is machine learning?')
-
-# Jupyter notebook magic
-%load_ext lantae
-
-%lantae What insights can you find in this data?
-df = pd.read_csv('data.csv')
-df.head()
-
-%%lantae
-Analyze this sales data and create a visualization:
-- Find trends and patterns
-- Generate a summary report
-- Create appropriate charts
-
-# Data analysis workflow
-import pandas as pd
-from lantae import DataAnalyzer
-
-analyzer = DataAnalyzer()
-df = pd.read_csv('sales_data.csv')
-
-# AI-powered data analysis
-insights = analyzer.analyze(df, "Find sales trends by region")
-chart = analyzer.visualize(df, "Create a monthly sales chart")
-
-# ML pipeline integration
-from lantae.ml import MLAssistant
-
-assistant = MLAssistant()
-model_suggestion = assistant.suggest_model(df, target='sales')
-feature_engineering = assistant.engineer_features(df)
-```
-
-#### Jupyter Notebook Integration (Planned)
-```bash
-# Install Jupyter extension
-pip install lantae[jupyter]
-
-# Start Jupyter with Lantae
-jupyter lab
-
-# In notebook:
-%load_ext lantae
-%lantae_config provider=ollama model=cogito:latest
-```
-
-#### Data Science Workflow Example
-```python
-# Complete ML workflow with AI assistance
-import pandas as pd
-from lantae.data import DataScientist
-
-ds = DataScientist()
-
-# Load and explore data
-df = pd.read_csv('dataset.csv')
-summary = ds.explore(df, "Provide detailed EDA insights")
-
-# Feature engineering with AI
-features = ds.engineer_features(
-    df, 
-    target='target_column',
-    prompt="Create relevant features for predicting customer churn"
-)
-
-# Model selection and training
-model = ds.train_model(
-    features, 
-    target='target_column',
-    prompt="Select best model for this classification problem"
-)
-
-# Generate report
-report = ds.generate_report(model, "Create executive summary")
-```
-
-### 🔄 Feature Parity Matrix
+### 🎯 Feature Parity Matrix
 
 For a comprehensive view of feature implementation across all languages, see our [Feature Parity Document](docs/FEATURE_PARITY.md).
 
@@ -694,8 +577,6 @@ For a comprehensive view of feature implementation across all languages, see our
 | **Planning Agent** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **MCP Protocol** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
-| **Jupyter Integration** | ❌ | ❌ | ❌ | ❌ | 📋 |
-| **Data Science Tools** | ❌ | ❌ | ❌ | ❌ | 📋 |
 
 #### Legend
 - ✅ **Implemented** - Feature fully functional
@@ -703,10 +584,51 @@ For a comprehensive view of feature implementation across all languages, see our
 - ❌ **Missing** - Not implemented
 - 📋 **Planned** - Scheduled for implementation
 
+### 🚀 Getting Started with Different Implementations
+
+#### Ruby (Reference Implementation)
+```bash
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+bundle install
+./lantae
+```
+
+#### LISP Implementation
+```bash
+git clone -b lisp-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+# See LISP_QUICKSTART.md for setup instructions
+```
+
+#### Rust Implementation (Coming Soon)
+```bash
+git clone -b rust-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/rust-lantae
+cargo build --release
+./target/release/lantae
+```
+
+#### Node.js Implementation (Coming Soon)
+```bash
+git clone -b nodejs-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/nodejs-lantae
+npm install
+npm start
+```
+
+#### Python Implementation (Coming Soon)
+```bash
+git clone -b python-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/python-lantae
+pip install -e .
+lantae
+```
+
 ### 🔄 Cross-Implementation Compatibility
 
 All implementations share:
-- **Consistent CLI interface** - Same commands and options (when implemented)
+- **Consistent CLI interface** - Same commands and options
 - **Compatible configuration** - Shared environment variables and config files
 - **Unified provider support** - Same API keys and provider switching
 - **Feature parity tracking** - Systematic feature implementation across languages
@@ -718,8 +640,6 @@ All implementations share:
 - [Anthropic API](https://www.anthropic.com/) - Claude models
 - [AWS Bedrock](https://aws.amazon.com/bedrock/) - Managed AI services
 - [Feature Parity Document](docs/FEATURE_PARITY.md) - Detailed cross-language status
-- [Python Documentation](https://docs.python.org/) - Python language documentation
-- [Jupyter Project](https://jupyter.org/) - Interactive computing environment
 
 ---
 
