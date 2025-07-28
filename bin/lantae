@@ -27,6 +27,8 @@ require_relative '../lib/ruby/streaming_handler'
 require_relative '../lib/ruby/interactive_enhancements'
 require_relative '../lib/ruby/plugin_system'
 require_relative '../lib/ruby/enhanced_repl'
+require_relative '../lib/ruby/response_formatter'
+require_relative '../lib/ruby/api_key_authorizer'
 require_relative '../lib/ruby/intelligent_router'
 require_relative '../lib/ruby/planning_agent'
 
@@ -131,8 +133,8 @@ class ProviderManager
       'mistral' => MistralProvider.new(secret_manager),
       'perplexity' => PerplexityProvider.new(secret_manager)
     }
-    @current_provider = 'ollama'
-    @current_model = 'cogito:latest'
+    @current_provider = 'anthropic'  # Default to Anthropic
+    @current_model = 'claude-3-5-sonnet-20241022'  # Default Claude model
     
     # Set tool manager for all providers
     if @tool_manager
@@ -294,7 +296,9 @@ class OllamaProvider
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
         puts "   ✅ Tool completed: #{tool_name}"
-        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        # Format tool output for better readability
+        formatted_output = Lantae::ResponseFormatter.format_tool_output(tool_name, result, true)
+        puts formatted_output
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
         puts "   ❌ Tool failed: #{tool_name}"
@@ -446,7 +450,9 @@ class OpenAIProvider
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
         puts "   ✅ Tool completed: #{tool_name}"
-        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        # Format tool output for better readability
+        formatted_output = Lantae::ResponseFormatter.format_tool_output(tool_name, result, true)
+        puts formatted_output
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
         puts "   ❌ Tool failed: #{tool_name}"
@@ -478,7 +484,15 @@ class AnthropicProvider
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('anthropic')
-    raise 'Anthropic API key not found in environment or AWS Secrets Manager' unless api_key
+    
+    # If no API key found, request one via browser flow
+    unless api_key
+      puts "\n🔍 No Anthropic API key found..."
+      api_key = Lantae::APIKeyAuthorizer.request_anthropic_key
+      unless api_key
+        raise 'Anthropic API key is required. Please run lantae again to set up your key.'
+      end
+    end
 
     # Prepare messages and extract system content
     system_content = nil
@@ -607,7 +621,9 @@ class AnthropicProvider
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
         puts "   ✅ Tool completed: #{tool_name}"
-        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        # Format tool output for better readability
+        formatted_output = Lantae::ResponseFormatter.format_tool_output(tool_name, result, true)
+        puts formatted_output
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
         puts "   ❌ Tool failed: #{tool_name}"
@@ -753,7 +769,9 @@ class GeminiProvider
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
         puts "   ✅ Tool completed: #{tool_name}"
-        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        # Format tool output for better readability
+        formatted_output = Lantae::ResponseFormatter.format_tool_output(tool_name, result, true)
+        puts formatted_output
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
         puts "   ❌ Tool failed: #{tool_name}"
@@ -890,7 +908,9 @@ class MistralProvider
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
         puts "   ✅ Tool completed: #{tool_name}"
-        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        # Format tool output for better readability
+        formatted_output = Lantae::ResponseFormatter.format_tool_output(tool_name, result, true)
+        puts formatted_output
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
         puts "   ❌ Tool failed: #{tool_name}"
@@ -1027,7 +1047,9 @@ class PerplexityProvider
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
         puts "   ✅ Tool completed: #{tool_name}"
-        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        # Format tool output for better readability
+        formatted_output = Lantae::ResponseFormatter.format_tool_output(tool_name, result, true)
+        puts formatted_output
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
         puts "   ❌ Tool failed: #{tool_name}"
@@ -1196,7 +1218,9 @@ class BedrockProvider
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
         puts "   ✅ Tool completed: #{tool_name}"
-        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        # Format tool output for better readability
+        formatted_output = Lantae::ResponseFormatter.format_tool_output(tool_name, result, true)
+        puts formatted_output
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
         puts "   ❌ Tool failed: #{tool_name}"
@@ -1647,7 +1671,11 @@ def send_single_prompt(prompt, options)
     execute_agent_task(prompt, provider_manager, tool_manager, options)
   else
     response = provider_manager.chat([{ role: 'user', content: prompt }], options)
-    puts "#{response}"
+    formatted_response = Lantae::ResponseFormatter.format_response(response, 
+      boxed: true,
+      markdown: true
+    )
+    puts formatted_response
   end
 rescue => e
   puts "Error: #{e.message}"
@@ -2308,7 +2336,12 @@ def start_repl(options)
         
         conversation << { role: 'assistant', content: response }
       end
-      puts "#{response}\n\n"
+      # Format the response for better readability
+      formatted_response = Lantae::ResponseFormatter.format_response(response, 
+        boxed: true,
+        markdown: true
+      )
+      puts formatted_response
       
       # Auto-accept mode handling
       if options[:auto_accept] && (response.downcase.include?('would you like') || response.downcase.include?('shall i') || response.downcase.include?('proceed'))
@@ -3219,8 +3252,10 @@ end
 
 def main
   options = {
-    model: 'cogito:latest',
-    provider: 'ollama',
+    model: 'claude-3-5-sonnet-20241022',
+    provider: 'anthropic',
+    enhanced_ui: false,  # Disabled for now due to display issues
+    formatted_output: true,  # Enable formatted responses by default
     url: 'http://localhost:11434',
     region: 'us-east-1',
     secret: 'lantae/api-keys',
