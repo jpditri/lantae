@@ -45,20 +45,37 @@ Lantae provides a unified interface to interact with various Large Language Mode
 
 ### Installation
 
+#### Standard Installation
 ```bash
 # Clone the repository
 git clone https://github.com/jpditri/lantae-cli.git
 cd lantae-cli
 
-# Install Ruby dependencies
+# Run automated installer
+./install.sh
+
+# Or manual installation:
 bundle install
-
-# Make executable
 chmod +x lantae
-
-# Run with default cogito model
 ./lantae
 ```
+
+#### 🍓 Raspberry Pi / ARM Installation
+For Raspberry Pi and other ARM devices, use the optimized installer:
+```bash
+# Clone the repository
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+
+# Run Raspberry Pi specific installer
+chmod +x scripts/install-raspberry-pi.sh
+./scripts/install-raspberry-pi.sh
+
+# Run Lantae
+./lantae-pi
+```
+
+**Note:** The Raspberry Pi installer uses system Ruby packages instead of compiling from source, which is much faster and more reliable on ARM devices.
 
 ## 📖 Usage
 
