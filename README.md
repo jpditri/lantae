@@ -45,20 +45,37 @@ Lantae provides a unified interface to interact with various Large Language Mode
 
 ### Installation
 
+#### Standard Installation
 ```bash
 # Clone the repository
 git clone https://github.com/jpditri/lantae-cli.git
 cd lantae-cli
 
-# Install Ruby dependencies
+# Run automated installer
+./install.sh
+
+# Or manual installation:
 bundle install
-
-# Make executable
 chmod +x lantae
-
-# Run with default cogito model
 ./lantae
 ```
+
+#### 🍓 Raspberry Pi / ARM Installation
+For Raspberry Pi and other ARM devices, use the optimized installer:
+```bash
+# Clone the repository
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+
+# Run Raspberry Pi specific installer
+chmod +x scripts/install-raspberry-pi.sh
+./scripts/install-raspberry-pi.sh
+
+# Run Lantae
+./lantae-pi
+```
+
+**Note:** The Raspberry Pi installer uses system Ruby packages instead of compiling from source, which is much faster and more reliable on ARM devices.
 
 ## 📖 Usage
 
@@ -546,6 +563,27 @@ Lantae is available in multiple programming languages, each optimized for differ
 | **Node.js** | `nodejs-implementation` | 🔄 **Planned** | Web integration, JavaScript ecosystem |
 | **Python** | `python-implementation` | 🔄 **Planned** | Data science, ML workflows |
 
+### 🎯 Feature Parity Matrix
+
+For a comprehensive view of feature implementation across all languages, see our [Feature Parity Document](docs/FEATURE_PARITY.md).
+
+#### Core Features Status
+
+| Feature | Ruby | LISP | Rust | Node.js | Python |
+|---------|------|------|------|---------|---------|
+| **Interactive REPL** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Provider Support** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Tool Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Planning Agent** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **MCP Protocol** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+
+#### Legend
+- ✅ **Implemented** - Feature fully functional
+- 🟡 **Partial** - Basic implementation, missing advanced features
+- ❌ **Missing** - Not implemented
+- 📋 **Planned** - Scheduled for implementation
+
 ### 🎯 LISP Implementation Status
 
 This branch contains the **LISP implementation** of Lantae, focusing on functional programming paradigms and symbolic computation.
@@ -590,6 +628,23 @@ sbcl --load quicklisp.lisp
 sbcl --load lantae.lisp
 ```
 
+#### 🍓 Raspberry Pi / ARM Installation
+For Raspberry Pi and other ARM devices, use the optimized installer:
+```bash
+# Clone the repository
+git clone -b lisp-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+
+# Run Raspberry Pi specific installer
+chmod +x scripts/install-raspberry-pi.sh
+./scripts/install-raspberry-pi.sh
+
+# Run Lantae
+./lantae-pi
+```
+
+**Note:** The Raspberry Pi installer uses system Ruby packages instead of compiling from source, which is much faster and more reliable on ARM devices.
+
 #### Usage Examples
 ```lisp
 ;; Start interactive session
@@ -605,31 +660,51 @@ sbcl --load lantae.lisp
 (lantae:set-model "cogito:latest")
 ```
 
-### 🔄 Feature Parity Matrix
+### 🚀 Getting Started with Different Implementations
 
-For a comprehensive view of feature implementation across all languages, see our [Feature Parity Document](docs/FEATURE_PARITY.md).
+#### Ruby (Reference Implementation)
+```bash
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+bundle install
+./lantae
+```
 
-#### Core Features Status
+#### LISP Implementation
+```bash
+git clone -b lisp-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+# See LISP_QUICKSTART.md for setup instructions
+```
 
-| Feature | Ruby | LISP | Rust | Node.js | Python |
-|---------|------|------|------|---------|---------|
-| **Interactive REPL** | ✅ | 🟡 | 📋 | 📋 | 📋 |
-| **Provider Support** | ✅ | 🟡 | 📋 | 📋 | 📋 |
-| **Tool Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
-| **Planning Agent** | ✅ | ❌ | 📋 | 📋 | 📋 |
-| **MCP Protocol** | ✅ | ❌ | 📋 | 📋 | 📋 |
-| **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
+#### Rust Implementation (Coming Soon)
+```bash
+git clone -b rust-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/rust-lantae
+cargo build --release
+./target/release/lantae
+```
 
-#### Legend
-- ✅ **Implemented** - Feature fully functional
-- 🟡 **Partial** - Basic implementation, missing advanced features
-- ❌ **Missing** - Not implemented
-- 📋 **Planned** - Scheduled for implementation
+#### Node.js Implementation (Coming Soon)
+```bash
+git clone -b nodejs-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/nodejs-lantae
+npm install
+npm start
+```
+
+#### Python Implementation (Coming Soon)
+```bash
+git clone -b python-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/python-lantae
+pip install -e .
+lantae
+```
 
 ### 🔄 Cross-Implementation Compatibility
 
 All implementations share:
-- **Consistent CLI interface** - Same commands and options (when implemented)
+- **Consistent CLI interface** - Same commands and options
 - **Compatible configuration** - Shared environment variables and config files
 - **Unified provider support** - Same API keys and provider switching
 - **Feature parity tracking** - Systematic feature implementation across languages
