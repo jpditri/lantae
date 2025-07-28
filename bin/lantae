@@ -85,15 +85,19 @@ class ProgressIndicator
     @message = message
     @running = false
     @thread = nil
+    @start_time = nil
   end
   
   def start
     @running = true
+    @start_time = Time.now
     @thread = Thread.new do
       spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
       i = 0
       while @running
-        print "\r🤖 #{spinner_chars[i % spinner_chars.length]} #{@message}..."
+        elapsed = Time.now - @start_time
+        elapsed_str = elapsed > 2 ? " (#{elapsed.round(1)}s)" : ""
+        print "\r🤖 #{spinner_chars[i % spinner_chars.length]} #{@message}#{elapsed_str}..."
         $stdout.flush
         sleep 0.1
         i += 1
@@ -109,7 +113,7 @@ class ProgressIndicator
     @running = false
     @thread&.join(0.5)  # Wait max 0.5 seconds
     @thread&.kill if @thread&.alive?
-    print "\r" + " " * 80 + "\r"  # Clear the line
+    print "\r" + " " * 100 + "\r"  # Clear the line
     $stdout.flush
   end
 end
@@ -164,6 +168,13 @@ class ProviderManager
 
   def chat(messages, options = {})
     provider = @providers[@current_provider]
+    
+    # Show dispatch status unless in quiet mode
+    unless options[:quiet]
+      puts "\n🔄 Dispatching to #{@current_provider} provider (#{@current_model})..."
+      $stdout.flush
+    end
+    
     provider.chat(@current_model, messages, options)
   end
 
@@ -222,19 +233,20 @@ class OllamaProvider
     }.to_json
 
     begin
-      # Start spinner in a separate thread if not showing status already
-      spinner_thread = nil
-      unless options[:no_spinner]
-        spinner_thread = start_spinner
-      end
+      # Show progress indicator
+      progress = ProgressIndicator.new("Preparing Ollama request")
+      progress.start unless options[:no_spinner]
+      
+      # Update status
+      progress&.update_message("Sending request to local Ollama (#{model})")
       
       response = http.request(request)
       
-      # Stop spinner
-      if spinner_thread
-        spinner_thread.kill
-        print "\r" + " " * 20 + "\r"  # Clear spinner line
-      end
+      # Update status
+      progress&.update_message("Processing Ollama response")
+      
+      # Stop progress indicator
+      progress&.stop
       
       data = JSON.parse(response.body)
       
@@ -270,7 +282,10 @@ class OllamaProvider
       tool_name, *args = tool_call.split(' ')
       
       begin
-        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        puts "\n🔧 Tool requested: #{tool_name}"
+        puts "   📥 Processing tool call in response..."
+        $stdout.flush
+        
         result = @tool_manager.execute_tool(tool_name, args.join(' '))
         
         # Replace the tool call with the result
@@ -278,10 +293,12 @@ class OllamaProvider
         replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
-        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        puts "   ✅ Tool completed: #{tool_name}"
+        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
-        puts "❌ #{error_msg}"
+        puts "   ❌ Tool failed: #{tool_name}"
+        puts "   🚫 Error: #{error.message}"
         
         tool_call_line = "TOOL_CALL: #{tool_call}"
         replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
@@ -344,11 +361,17 @@ class OpenAIProvider
     }.to_json
     
     # Show progress indicator
-    progress = ProgressIndicator.new("Thinking")
+    progress = ProgressIndicator.new("Preparing OpenAI request")
     progress.start unless options[:no_spinner]
 
     begin
+      # Update status
+      progress&.update_message("Sending request to OpenAI API")
+      
       response = http.request(request)
+      
+      # Update status
+      progress&.update_message("Processing OpenAI response")
       
       # Stop progress indicator
       progress&.stop
@@ -411,7 +434,10 @@ class OpenAIProvider
       tool_name, *args = tool_call.split(' ')
       
       begin
-        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        puts "\n🔧 Tool requested: #{tool_name}"
+        puts "   📥 Processing tool call in response..."
+        $stdout.flush
+        
         result = @tool_manager.execute_tool(tool_name, args.join(' '))
         
         # Replace the tool call with the result
@@ -419,10 +445,12 @@ class OpenAIProvider
         replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
-        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        puts "   ✅ Tool completed: #{tool_name}"
+        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
-        puts "❌ #{error_msg}"
+        puts "   ❌ Tool failed: #{tool_name}"
+        puts "   🚫 Error: #{error.message}"
         
         tool_call_line = "TOOL_CALL: #{tool_call}"
         replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
@@ -494,11 +522,17 @@ class AnthropicProvider
     request.body = request_body.to_json
 
     # Show progress indicator
-    progress = ProgressIndicator.new("Thinking")
+    progress = ProgressIndicator.new("Preparing Anthropic request")
     progress.start unless options[:no_spinner]
     
     begin
+      # Update status
+      progress&.update_message("Sending request to Anthropic API")
+      
       response = http.request(request)
+      
+      # Update status
+      progress&.update_message("Processing Anthropic response")
       
       # Stop progress indicator
       progress&.stop
@@ -561,7 +595,10 @@ class AnthropicProvider
       tool_name, *args = tool_call.split(' ')
       
       begin
-        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        puts "\n🔧 Tool requested: #{tool_name}"
+        puts "   📥 Processing tool call in response..."
+        $stdout.flush
+        
         result = @tool_manager.execute_tool(tool_name, args.join(' '))
         
         # Replace the tool call with the result
@@ -569,10 +606,12 @@ class AnthropicProvider
         replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
-        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        puts "   ✅ Tool completed: #{tool_name}"
+        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
-        puts "❌ #{error_msg}"
+        puts "   ❌ Tool failed: #{tool_name}"
+        puts "   🚫 Error: #{error.message}"
         
         tool_call_line = "TOOL_CALL: #{tool_call}"
         replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
@@ -629,11 +668,17 @@ class GeminiProvider
     }.to_json
 
     # Show progress indicator
-    progress = ProgressIndicator.new("Thinking")
+    progress = ProgressIndicator.new("Preparing Gemini request")
     progress.start unless options[:no_spinner]
     
     begin
+      # Update status
+      progress&.update_message("Sending request to Gemini API")
+      
       response = http.request(request)
+      
+      # Update status
+      progress&.update_message("Processing Gemini response")
       
       # Stop progress indicator
       progress&.stop
@@ -696,7 +741,10 @@ class GeminiProvider
       tool_name, *args = tool_call.split(' ')
       
       begin
-        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        puts "\n🔧 Tool requested: #{tool_name}"
+        puts "   📥 Processing tool call in response..."
+        $stdout.flush
+        
         result = @tool_manager.execute_tool(tool_name, args.join(' '))
         
         # Replace the tool call with the result
@@ -704,10 +752,12 @@ class GeminiProvider
         replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
-        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        puts "   ✅ Tool completed: #{tool_name}"
+        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
-        puts "❌ #{error_msg}"
+        puts "   ❌ Tool failed: #{tool_name}"
+        puts "   🚫 Error: #{error.message}"
         
         tool_call_line = "TOOL_CALL: #{tool_call}"
         replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
@@ -755,11 +805,17 @@ class MistralProvider
     }.to_json
 
     # Show progress indicator
-    progress = ProgressIndicator.new("Thinking")
+    progress = ProgressIndicator.new("Preparing Mistral request")
     progress.start unless options[:no_spinner]
     
     begin
+      # Update status
+      progress&.update_message("Sending request to Mistral API")
+      
       response = http.request(request)
+      
+      # Update status
+      progress&.update_message("Processing Mistral response")
       
       # Stop progress indicator
       progress&.stop
@@ -822,7 +878,10 @@ class MistralProvider
       tool_name, *args = tool_call.split(' ')
       
       begin
-        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        puts "\n🔧 Tool requested: #{tool_name}"
+        puts "   📥 Processing tool call in response..."
+        $stdout.flush
+        
         result = @tool_manager.execute_tool(tool_name, args.join(' '))
         
         # Replace the tool call with the result
@@ -830,10 +889,12 @@ class MistralProvider
         replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
-        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        puts "   ✅ Tool completed: #{tool_name}"
+        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
-        puts "❌ #{error_msg}"
+        puts "   ❌ Tool failed: #{tool_name}"
+        puts "   🚫 Error: #{error.message}"
         
         tool_call_line = "TOOL_CALL: #{tool_call}"
         replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
@@ -881,11 +942,17 @@ class PerplexityProvider
     }.to_json
 
     # Show progress indicator
-    progress = ProgressIndicator.new("Thinking")
+    progress = ProgressIndicator.new("Preparing Perplexity request")
     progress.start unless options[:no_spinner]
     
     begin
+      # Update status
+      progress&.update_message("Sending request to Perplexity API")
+      
       response = http.request(request)
+      
+      # Update status
+      progress&.update_message("Processing Perplexity response")
       
       # Stop progress indicator
       progress&.stop
@@ -948,7 +1015,10 @@ class PerplexityProvider
       tool_name, *args = tool_call.split(' ')
       
       begin
-        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        puts "\n🔧 Tool requested: #{tool_name}"
+        puts "   📥 Processing tool call in response..."
+        $stdout.flush
+        
         result = @tool_manager.execute_tool(tool_name, args.join(' '))
         
         # Replace the tool call with the result
@@ -956,10 +1026,12 @@ class PerplexityProvider
         replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
-        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        puts "   ✅ Tool completed: #{tool_name}"
+        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
-        puts "❌ #{error_msg}"
+        puts "   ❌ Tool failed: #{tool_name}"
+        puts "   🚫 Error: #{error.message}"
         
         tool_call_line = "TOOL_CALL: #{tool_call}"
         replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
@@ -1025,15 +1097,21 @@ class BedrockProvider
     end
 
     # Show progress indicator
-    progress = ProgressIndicator.new("Thinking")
+    progress = ProgressIndicator.new("Preparing AWS Bedrock request")
     progress.start unless options[:no_spinner]
     
     begin
+      # Update status
+      progress&.update_message("Invoking #{bedrock_model_id} on AWS Bedrock")
+      
       response = @client.invoke_model({
         model_id: bedrock_model_id,
         body: body
       })
 
+      # Update status
+      progress&.update_message("Processing Bedrock response")
+      
       # Stop progress indicator
       progress&.stop
       
@@ -1106,7 +1184,10 @@ class BedrockProvider
       tool_name, *args = tool_call.split(' ')
       
       begin
-        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        puts "\n🔧 Tool requested: #{tool_name}"
+        puts "   📥 Processing tool call in response..."
+        $stdout.flush
+        
         result = @tool_manager.execute_tool(tool_name, args.join(' '))
         
         # Replace the tool call with the result
@@ -1114,10 +1195,12 @@ class BedrockProvider
         replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
         processed_content = processed_content.gsub(tool_call_line, replacement)
         
-        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+        puts "   ✅ Tool completed: #{tool_name}"
+        puts "   📄 Result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
       rescue => error
         error_msg = "Error executing #{tool_name}: #{error.message}"
-        puts "❌ #{error_msg}"
+        puts "   ❌ Tool failed: #{tool_name}"
+        puts "   🚫 Error: #{error.message}"
         
         tool_call_line = "TOOL_CALL: #{tool_call}"
         replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
@@ -1158,13 +1241,14 @@ class ToolManager
     end
     
     # Show execution status
-    puts "\n🔧 Executing tool: #{tool_name}"
+    puts "\n🔧 Tool execution requested: #{tool_name}"
+    puts "   📦 Preparing tool environment..."
     $stdout.flush
     
     # Create progress indicator for long-running tools
     progress = nil
     if %w[bash ruby python git bundle find].include?(tool_name)
-      progress = ProgressIndicator.new("Running #{tool_name}")
+      progress = ProgressIndicator.new("Executing #{tool_name} command")
       progress.start
     end
     
@@ -2172,6 +2256,9 @@ def start_repl(options)
       next if input.empty?
       
       if input.start_with?('/')
+        puts "\n🎯 Processing slash command: #{input.split(' ').first}..."
+        $stdout.flush
+        
         extra_managers = {
           conversation_manager: conversation_manager,
           template_manager: template_manager,
@@ -2186,6 +2273,9 @@ def start_repl(options)
       
       # Handle intelligent routing if enabled
       if intelligent_router
+        puts "\n🧠 Using intelligent routing..."
+        $stdout.flush
+        
         # Route through intelligent system
         routing_context = {
           conversation_history: conversation,
@@ -2201,12 +2291,21 @@ def start_repl(options)
         # Traditional routing
         # Handle planning mode
         if options[:planning_mode] && !input.downcase.include?('execute') && !input.downcase.include?('proceed')
+          puts "\n📋 Planning mode: Creating detailed plan..."
+          $stdout.flush
           input = "Please create a detailed plan for: #{input}. Break it down into clear steps and ask for confirmation before proceeding."
         end
         
         conversation << { role: 'user', content: input }
         
+        puts "\n📡 Sending message to AI..."
+        $stdout.flush
+        
         response = provider_manager.chat(conversation, options)
+        
+        puts "\n📩 Response received, processing..."
+        $stdout.flush
+        
         conversation << { role: 'assistant', content: response }
       end
       puts "#{response}\n\n"
