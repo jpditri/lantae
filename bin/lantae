@@ -2275,144 +2275,21 @@ def start_repl(options)
     puts "🧠 Intelligent routing enabled"
   end
   
-  conversation = []
+  # Always use async REPL
+  async_repl = Lantae::AsyncREPL.new(provider_manager, tool_manager, options)
   
-  print_banner unless options[:no_banner]
+  # Pass extra managers
+  async_repl.set_extra_managers({
+    conversation_manager: conversation_manager,
+    template_manager: template_manager,
+    cost_tracker: cost_tracker,
+    plugin_system: plugin_system,
+    interactive_enhancements: interactive_enhancements,
+    intelligent_router: intelligent_router,
+    mcp_manager: mcp_manager
+  })
   
-  info = provider_manager.get_provider_info
-  puts "#{"\e[96m"}Provider: #{"\e[93m"}#{info[:provider]}#{"\e[96m"} | Model: #{"\e[92m"}#{info[:model]}#{"\e[0m"}"
-  
-  # Display active modes
-  modes = []
-  modes << "#{"\e[93m"}Auto-Accept#{"\e[0m"}" if options[:auto_accept]
-  modes << "#{"\e[94m"}Planning Mode#{"\e[0m"}" if options[:planning_mode]
-  modes << "#{"\e[95m"}Agent Mode#{"\e[0m"}" if options[:agent_mode]
-  puts "#{"\e[96m"}Active Modes: #{modes.join(', ')}#{"\e[0m"}" unless modes.empty?
-  
-  puts "#{"\e[90m"}Type \"/help\" for commands, \"exit\" or \"quit\" to end#{"\e[0m"}"
-  puts
-
-  begin
-    models = provider_manager.list_models
-    if models.empty?
-      puts '⚠️  No models found.'
-    elsif !models.include?(provider_manager.current_model)
-      puts "⚠️  Model \"#{provider_manager.current_model}\" not found. Available models:"
-      models.first(10).each { |m| puts "  - #{m}" }
-      puts "  ... and #{models.length - 10} more" if models.length > 10
-      puts
-    end
-  rescue => e
-    puts "Error checking models: #{e.message}"
-  end
-  
-  # Check if classic mode is requested, otherwise use async REPL
-  if options[:classic_mode]
-    # Use classic synchronous REPL
-    setup_autocomplete(provider_manager, tool_manager, mcp_manager)
-    
-    loop do
-    begin
-      input = Readline.readline('> ', true)
-      break if input.nil? || input.strip == 'exit' || input.strip == 'quit'
-      
-      input = input.strip
-      next if input.empty?
-      
-      if input.start_with?('/')
-        puts "\n🎯 Processing slash command: #{input.split(' ').first}..."
-        $stdout.flush
-        
-        extra_managers = {
-          conversation_manager: conversation_manager,
-          template_manager: template_manager,
-          cost_tracker: cost_tracker,
-          plugin_system: plugin_system,
-          interactive_enhancements: interactive_enhancements,
-          intelligent_router: intelligent_router
-        }
-        handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager, options, extra_managers)
-        next
-      end
-      
-      # Handle intelligent routing if enabled
-      if intelligent_router
-        puts "\n🧠 Using intelligent routing..."
-        $stdout.flush
-        
-        # Route through intelligent system
-        routing_context = {
-          conversation_history: conversation,
-          available_tools: tool_manager.list_available_tools,
-          current_directory: Dir.pwd,
-          options: options
-        }
-        
-        response = intelligent_router.route_prompt(input, routing_context)
-        conversation << { role: 'user', content: input }
-        conversation << { role: 'assistant', content: response }
-      else
-        # Traditional routing
-        # Handle planning mode
-        if options[:planning_mode] && !input.downcase.include?('execute') && !input.downcase.include?('proceed')
-          puts "\n📋 Planning mode: Creating detailed plan..."
-          $stdout.flush
-          input = "Please create a detailed plan for: #{input}. Break it down into clear steps and ask for confirmation before proceeding."
-        end
-        
-        conversation << { role: 'user', content: input }
-        
-        puts "\n📡 Sending message to AI..."
-        $stdout.flush
-        
-        response = provider_manager.chat(conversation, options)
-        
-        puts "\n📩 Response received, processing..."
-        $stdout.flush
-        
-        conversation << { role: 'assistant', content: response }
-      end
-      # Format the response for better readability
-      formatted_response = Lantae::ResponseFormatter.format_response(response, 
-        boxed: true,
-        markdown: true
-      )
-      puts formatted_response
-      
-      # Auto-accept mode handling
-      if options[:auto_accept] && (response.downcase.include?('would you like') || response.downcase.include?('shall i') || response.downcase.include?('proceed'))
-        puts "#{"\e[93m"}[AUTO-ACCEPT] Automatically confirming action...#{"\e[0m"}\n"
-        conversation << { role: 'user', content: 'Yes, please proceed.' }
-        
-        auto_response = provider_manager.chat(conversation, options)
-        conversation << { role: 'assistant', content: auto_response }
-        puts "#{auto_response}\n\n"
-      end
-      
-    rescue Interrupt
-      puts "\nGoodbye!"
-      break
-    rescue => e
-      puts "Error: #{e.message}"
-    end
-  end
-  else
-    # Use async REPL by default
-    async_repl = Lantae::AsyncREPL.new(provider_manager, tool_manager, options)
-    
-    # Pass extra managers
-    async_repl.set_extra_managers({
-      conversation_manager: conversation_manager,
-      template_manager: template_manager,
-      cost_tracker: cost_tracker,
-      plugin_system: plugin_system,
-      interactive_enhancements: interactive_enhancements,
-      intelligent_router: intelligent_router,
-      mcp_manager: mcp_manager
-    })
-    
-    async_repl.start
-  end
+  async_repl.start
 end
 
 def handle_slash_command(input, provider_manager, tool_manager, conversation, mcp_manager = nil, options = {}, extra_managers = {})
@@ -3307,7 +3184,6 @@ def main
   options = {
     model: 'claude-3-5-sonnet-20241022',
     provider: 'anthropic',
-    classic_mode: false,  # Use async REPL by default
     formatted_output: true,  # Enable formatted responses by default
     url: 'http://localhost:11434',
     region: 'us-east-1',
@@ -3339,7 +3215,6 @@ def main
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }
     opts.on('--enable-lsp', 'Enable LSP (Language Server Protocol) for code intelligence') { options[:enable_lsp] = true }
     opts.on('--lsp-port PORT', 'LSP server port (default: 7777)') { |v| options[:lsp_port] = v.to_i }
-    opts.on('--classic', 'Use classic synchronous REPL instead of async mode') { options[:classic_mode] = true }
     opts.on('--intelligent-routing', 'Enable intelligent prompt routing through planning/squad/implementation stages') { options[:intelligent_routing] = true }
     opts.on('--routing-config PATH', 'Path to routing configuration YAML file') { |v| options[:routing_config] = v }
     opts.on('-v', '--version', 'Show version') { puts VERSION; exit }

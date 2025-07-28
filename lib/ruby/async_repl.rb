@@ -34,6 +34,9 @@ module Lantae
     def start
       print_header if @show_banner
       
+      # Check for API key on startup
+      check_api_key_availability
+      
       # Set up autocomplete
       setup_autocomplete
       
@@ -65,6 +68,35 @@ module Lantae
     end
     
     private
+    
+    def check_api_key_availability
+      provider_info = @provider_manager.get_provider_info
+      provider = provider_info[:provider]
+      
+      # Skip for local providers
+      return if provider == 'ollama'
+      
+      # Check if API key exists
+      env_key = "#{provider.upcase}_API_KEY"
+      
+      if ENV[env_key].nil? && !File.exist?(File.expand_path('~/.lantae_env'))
+        puts "\n#{"\e[33m"}No API key found for #{provider.capitalize}.#{"\e[0m"}"
+        puts "Would you like to set it up now? (y/n): "
+        
+        response = gets&.chomp&.downcase
+        if response == 'y' || response == 'yes'
+          api_key = Lantae::APIKeyAuthorizer.request_api_key(provider)
+          unless api_key
+            puts "\n#{"\e[31m"}Warning: No API key configured. Commands will fail.#{"\e[0m"}"
+            puts "You can set it up later by:"
+            puts "  1. Running: export #{env_key}='your-api-key'"
+            puts "  2. Or creating ~/.lantae_env with: #{env_key}=your-api-key\n"
+          end
+        else
+          puts "\n#{"\e[90m"}Skipping API key setup. You can set it up later.#{"\e[0m"}\n"
+        end
+      end
+    end
     
     def print_header
       # First show the main banner
@@ -320,21 +352,27 @@ module Lantae
         
         add_command_output(command_id, formatted_response)
       rescue => e
-        # Check if this is an API key error that needs browser auth
+        # For API key errors, provide clear guidance
         if e.message.include?('API key is required') || e.message.include?('API key found')
           @output_mutex.synchronize do
-            puts "\n#{"\e[33m"}[#{command_id}] API key required. Please run the command again to set up your API key.#{"\e[0m"}"
-            puts "#{"\e[90m"}The browser-based authentication flow must run in the main thread.#{"\e[0m"}"
+            puts "\n#{"\e[33m"}[#{command_id}] API key required for #{command[:provider].capitalize}#{"\e[0m"}"
+            puts "\nTo set up your API key:"
+            puts "1. Exit this session (type 'exit')"
+            puts "2. Run: export #{command[:provider].upcase}_API_KEY='your-api-key'"
+            puts "3. Or create ~/.lantae_env with: #{command[:provider].upcase}_API_KEY=your-api-key"
+            puts "4. Restart lantae"
+            puts "\nAlternatively, the browser-based setup will trigger on next startup."
           end
           
-          # Mark this command as needing API key setup
+          # Mark command as failed with specific error
           @command_mutex.synchronize do
             command[:needs_api_key] = true
+            command[:error] = "API key required"
           end
+        else
+          # Re-raise other errors
+          raise
         end
-        
-        # Re-raise the error to be handled by the outer catch
-        raise
       end
     end
     
