@@ -3,21 +3,40 @@ require 'json'
 
 module Lantae
   class APIKeyAuthorizer
-    ANTHROPIC_CONSOLE_URL = "https://console.anthropic.com/settings/keys"
+    # Console URLs for different providers
+    CONSOLE_URLS = {
+      'anthropic' => "https://console.anthropic.com/settings/keys",
+      'openai' => "https://platform.openai.com/api-keys",
+      'gemini' => "https://makersuite.google.com/app/apikey",
+      'mistral' => "https://console.mistral.ai/api-keys",
+      'perplexity' => "https://www.perplexity.ai/settings/api"
+    }
     
-    def self.request_anthropic_key
-      puts "\n🔑 Anthropic API Key Required"
+    # Key prefixes for validation
+    KEY_PREFIXES = {
+      'anthropic' => 'sk-ant-',
+      'openai' => 'sk-',
+      'gemini' => 'AIza',
+      'mistral' => nil,  # Mistral keys don't have a specific prefix
+      'perplexity' => 'pplx-'
+    }
+    
+    def self.request_api_key(provider)
+      provider_name = provider.capitalize
+      console_url = CONSOLE_URLS[provider]
+      
+      puts "\n🔑 #{provider_name} API Key Required"
       puts "━" * 50
       puts
-      puts "To use Anthropic's Claude models, you need an API key."
+      puts "To use #{provider_name}, you need an API key."
       puts
       puts "You have two options:"
       puts
-      puts "1. \e[32mAutomatic\e[0m: Open Anthropic Console in your browser"
+      puts "1. \e[32mAutomatic\e[0m: Open #{provider_name} Console in your browser"
       puts "   We'll help you get a key and save it automatically"
       puts
       puts "2. \e[33mManual\e[0m: Enter an existing API key"
-      puts "   If you already have one from https://console.anthropic.com"
+      puts "   If you already have one from #{console_url}"
       puts
       print "Choose an option (1 or 2): "
       
@@ -25,29 +44,42 @@ module Lantae
       
       case choice
       when '1'
-        authorize_via_browser
+        authorize_via_browser(provider)
       when '2'
-        manual_key_entry
+        manual_key_entry(provider)
       else
         puts "\n❌ Invalid choice. Please run lantae again."
         nil
       end
     end
     
+    # Legacy method for backward compatibility
+    def self.request_anthropic_key
+      request_api_key('anthropic')
+    end
+    
     private
     
-    def self.authorize_via_browser
-      puts "\n🌐 Opening Anthropic Console..."
+    def self.authorize_via_browser(provider)
+      provider_name = provider.capitalize
+      console_url = CONSOLE_URLS[provider]
+      
+      puts "\n🌐 Opening #{provider_name} Console..."
       puts "Please follow these steps:"
       puts
       puts "1. Sign in or create an account"
       puts "2. Navigate to API Keys section" 
       puts "3. Create a new API key"
-      puts "4. Copy the key (it starts with 'sk-ant-')"
+      
+      if KEY_PREFIXES[provider]
+        puts "4. Copy the key (it starts with '#{KEY_PREFIXES[provider]}')"
+      else
+        puts "4. Copy the key"
+      end
       puts
       
       # Try to open browser
-      open_browser(ANTHROPIC_CONSOLE_URL)
+      open_browser(console_url)
       
       puts "\n⏳ Waiting for you to copy your API key..."
       puts
@@ -59,18 +91,23 @@ module Lantae
       system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
       puts # New line after hidden input
       
-      if validate_anthropic_key(api_key)
-        save_api_key(api_key)
+      if validate_api_key(provider, api_key)
+        save_api_key(provider, api_key)
         puts "\n✅ API key saved successfully!"
         api_key
       else
-        puts "\n❌ Invalid API key format. Keys should start with 'sk-ant-'"
+        if KEY_PREFIXES[provider]
+          puts "\n❌ Invalid API key format. Keys should start with '#{KEY_PREFIXES[provider]}'"
+        else
+          puts "\n❌ Invalid API key format."
+        end
         nil
       end
     end
     
-    def self.manual_key_entry
-      print "\nEnter your Anthropic API key: "
+    def self.manual_key_entry(provider)
+      provider_name = provider.capitalize
+      print "\nEnter your #{provider_name} API key: "
       
       # Disable echo for security
       system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
@@ -78,39 +115,59 @@ module Lantae
       system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
       puts # New line after hidden input
       
-      if validate_anthropic_key(api_key)
-        save_api_key(api_key)
+      if validate_api_key(provider, api_key)
+        save_api_key(provider, api_key)
         puts "\n✅ API key saved successfully!"
         api_key
       else
-        puts "\n❌ Invalid API key format. Keys should start with 'sk-ant-'"
+        if KEY_PREFIXES[provider]
+          puts "\n❌ Invalid API key format. Keys should start with '#{KEY_PREFIXES[provider]}'"
+        else
+          puts "\n❌ Invalid API key format."
+        end
         nil
       end
     end
     
-    def self.validate_anthropic_key(key)
-      key && key.strip.start_with?('sk-ant-') && key.length > 20
+    def self.validate_api_key(provider, key)
+      return false unless key && key.strip.length > 10
+      
+      prefix = KEY_PREFIXES[provider]
+      if prefix
+        key.strip.start_with?(prefix)
+      else
+        # For providers without specific prefixes, just check length
+        key.strip.length > 20
+      end
     end
     
-    def self.save_api_key(api_key)
+    # Legacy method for backward compatibility
+    def self.validate_anthropic_key(key)
+      validate_api_key('anthropic', key)
+    end
+    
+    def self.save_api_key(provider, api_key)
       # Save to environment file
       env_file = File.expand_path('~/.lantae_env')
+      
+      # Environment variable name
+      env_var = "#{provider.upcase}_API_KEY"
       
       # Read existing content
       existing_content = File.exist?(env_file) ? File.read(env_file) : ""
       
       # Update or add the key
-      if existing_content.include?('ANTHROPIC_API_KEY=')
-        new_content = existing_content.gsub(/ANTHROPIC_API_KEY=.*/, "ANTHROPIC_API_KEY=#{api_key}")
+      if existing_content.include?("#{env_var}=")
+        new_content = existing_content.gsub(/#{env_var}=.*/, "#{env_var}=#{api_key}")
       else
-        new_content = existing_content + "\nANTHROPIC_API_KEY=#{api_key}\n"
+        new_content = existing_content + "\n#{env_var}=#{api_key}\n"
       end
       
       File.write(env_file, new_content)
       File.chmod(0600, env_file)  # Secure the file
       
       # Also set in current environment
-      ENV['ANTHROPIC_API_KEY'] = api_key
+      ENV[env_var] = api_key
       
       # Add to shell profile if not already there
       add_to_shell_profile

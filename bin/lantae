@@ -27,6 +27,7 @@ require_relative '../lib/ruby/streaming_handler'
 require_relative '../lib/ruby/interactive_enhancements'
 require_relative '../lib/ruby/plugin_system'
 require_relative '../lib/ruby/enhanced_repl'
+require_relative '../lib/ruby/async_repl'
 require_relative '../lib/ruby/response_formatter'
 require_relative '../lib/ruby/api_key_authorizer'
 require_relative '../lib/ruby/intelligent_router'
@@ -53,8 +54,11 @@ class SecretManager
       return @cached_secrets[provider]
     end
 
-    # Fetch from AWS Secrets Manager
+    # Try to fetch from AWS Secrets Manager if AWS credentials are available
     begin
+      # Check if AWS credentials are configured
+      return nil unless ENV['AWS_ACCESS_KEY_ID'] || ENV['AWS_PROFILE'] || ENV['AWS_CONTAINER_CREDENTIALS_RELATIVE_URI']
+      
       init_client
       response = @client.get_secret_value(secret_id: @secret_name)
       secrets = JSON.parse(response.secret_string)
@@ -67,9 +71,15 @@ class SecretManager
       
       @cached_secrets[provider]
     rescue Aws::SecretsManager::Errors::ResourceNotFoundException
-      raise "AWS Secret '#{@secret_name}' not found. Create it with your API keys."
+      # Secret doesn't exist, return nil to trigger browser auth
+      return nil
+    rescue Aws::Errors::MissingCredentialsError
+      # AWS credentials not configured, return nil to trigger browser auth
+      return nil
     rescue => e
-      raise "Failed to retrieve API keys from AWS Secrets Manager: #{e.message}"
+      # Log the error but return nil to allow browser auth fallback
+      puts "Note: AWS Secrets Manager unavailable: #{e.message}" if ENV['DEBUG']
+      return nil
     end
   end
 
@@ -345,7 +355,15 @@ class OpenAIProvider
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('openai')
-    raise 'OpenAI API key not found in environment or AWS Secrets Manager' unless api_key
+    
+    # If no API key found, request one via browser flow
+    unless api_key
+      puts "\n🔍 No OpenAI API key found..."
+      api_key = Lantae::APIKeyAuthorizer.request_api_key('openai')
+      unless api_key
+        raise 'OpenAI API key is required. Please run lantae again to set up your key.'
+      end
+    end
 
     # Add tool context to the system message
     enhanced_messages = enhance_messages_with_tools(messages)
@@ -488,7 +506,7 @@ class AnthropicProvider
     # If no API key found, request one via browser flow
     unless api_key
       puts "\n🔍 No Anthropic API key found..."
-      api_key = Lantae::APIKeyAuthorizer.request_anthropic_key
+      api_key = Lantae::APIKeyAuthorizer.request_api_key('anthropic')
       unless api_key
         raise 'Anthropic API key is required. Please run lantae again to set up your key.'
       end
@@ -656,7 +674,15 @@ class GeminiProvider
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('gemini')
-    raise 'Gemini API key not found in environment or AWS Secrets Manager' unless api_key
+    
+    # If no API key found, request one via browser flow
+    unless api_key
+      puts "\n🔍 No Gemini API key found..."
+      api_key = Lantae::APIKeyAuthorizer.request_api_key('gemini')
+      unless api_key
+        raise 'Gemini API key is required. Please run lantae again to set up your key.'
+      end
+    end
 
     # Add tool context to the messages
     enhanced_messages = enhance_messages_with_tools(messages)
@@ -803,7 +829,15 @@ class MistralProvider
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('mistral')
-    raise 'Mistral API key not found in environment or AWS Secrets Manager' unless api_key
+    
+    # If no API key found, request one via browser flow
+    unless api_key
+      puts "\n🔍 No Mistral API key found..."
+      api_key = Lantae::APIKeyAuthorizer.request_api_key('mistral')
+      unless api_key
+        raise 'Mistral API key is required. Please run lantae again to set up your key.'
+      end
+    end
 
     # Add tool context to the system message
     enhanced_messages = enhance_messages_with_tools(messages)
@@ -942,7 +976,15 @@ class PerplexityProvider
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('perplexity')
-    raise 'Perplexity API key not found in environment or AWS Secrets Manager' unless api_key
+    
+    # If no API key found, request one via browser flow
+    unless api_key
+      puts "\n🔍 No Perplexity API key found..."
+      api_key = Lantae::APIKeyAuthorizer.request_api_key('perplexity')
+      unless api_key
+        raise 'Perplexity API key is required. Please run lantae again to set up your key.'
+      end
+    end
 
     # Add tool context to the system message
     enhanced_messages = enhance_messages_with_tools(messages)
@@ -2264,18 +2306,12 @@ def start_repl(options)
     puts "Error checking models: #{e.message}"
   end
   
-  # Check if enhanced UI mode is requested
-  if options[:enhanced_ui]
-    # Use the enhanced REPL with split-screen UI
-    enhanced_repl = Lantae::EnhancedREPL.new(provider_manager, tool_manager, options)
-    enhanced_repl.start
-    return
-  end
-  
-  # Set up autocomplete
-  setup_autocomplete(provider_manager, tool_manager, mcp_manager)
-
-  loop do
+  # Check if classic mode is requested, otherwise use async REPL
+  if options[:classic_mode]
+    # Use classic synchronous REPL
+    setup_autocomplete(provider_manager, tool_manager, mcp_manager)
+    
+    loop do
     begin
       input = Readline.readline('> ', true)
       break if input.nil? || input.strip == 'exit' || input.strip == 'quit'
@@ -2359,6 +2395,23 @@ def start_repl(options)
     rescue => e
       puts "Error: #{e.message}"
     end
+  end
+  else
+    # Use async REPL by default
+    async_repl = Lantae::AsyncREPL.new(provider_manager, tool_manager, options)
+    
+    # Pass extra managers
+    async_repl.set_extra_managers({
+      conversation_manager: conversation_manager,
+      template_manager: template_manager,
+      cost_tracker: cost_tracker,
+      plugin_system: plugin_system,
+      interactive_enhancements: interactive_enhancements,
+      intelligent_router: intelligent_router,
+      mcp_manager: mcp_manager
+    })
+    
+    async_repl.start
   end
 end
 
@@ -3254,7 +3307,7 @@ def main
   options = {
     model: 'claude-3-5-sonnet-20241022',
     provider: 'anthropic',
-    enhanced_ui: false,  # Disabled for now due to display issues
+    classic_mode: false,  # Use async REPL by default
     formatted_output: true,  # Enable formatted responses by default
     url: 'http://localhost:11434',
     region: 'us-east-1',
@@ -3286,7 +3339,7 @@ def main
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }
     opts.on('--enable-lsp', 'Enable LSP (Language Server Protocol) for code intelligence') { options[:enable_lsp] = true }
     opts.on('--lsp-port PORT', 'LSP server port (default: 7777)') { |v| options[:lsp_port] = v.to_i }
-    opts.on('--enhanced-ui', 'Enable enhanced split-screen UI with command queue') { options[:enhanced_ui] = true }
+    opts.on('--classic', 'Use classic synchronous REPL instead of async mode') { options[:classic_mode] = true }
     opts.on('--intelligent-routing', 'Enable intelligent prompt routing through planning/squad/implementation stages') { options[:intelligent_routing] = true }
     opts.on('--routing-config PATH', 'Path to routing configuration YAML file') { |v| options[:routing_config] = v }
     opts.on('-v', '--version', 'Show version') { puts VERSION; exit }
