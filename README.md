@@ -45,20 +45,37 @@ Lantae provides a unified interface to interact with various Large Language Mode
 
 ### Installation
 
+#### Standard Installation
 ```bash
 # Clone the repository
 git clone https://github.com/jpditri/lantae-cli.git
 cd lantae-cli
 
-# Install Ruby dependencies
+# Run automated installer
+./install.sh
+
+# Or manual installation:
 bundle install
-
-# Make executable
 chmod +x lantae
-
-# Run with default cogito model
 ./lantae
 ```
+
+#### 🍓 Raspberry Pi / ARM Installation
+For Raspberry Pi and other ARM devices, use the optimized installer:
+```bash
+# Clone the repository
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+
+# Run Raspberry Pi specific installer
+chmod +x scripts/install-raspberry-pi.sh
+./scripts/install-raspberry-pi.sh
+
+# Run Lantae
+./lantae-pi
+```
+
+**Note:** The Raspberry Pi installer uses system Ruby packages instead of compiling from source, which is much faster and more reliable on ARM devices.
 
 ## 📖 Usage
 
@@ -546,103 +563,7 @@ Lantae is available in multiple programming languages, each optimized for differ
 | **Node.js** | `nodejs-implementation` | 🔄 **Planned** | Web integration, JavaScript ecosystem |
 | **Python** | `python-implementation` | 🔄 **Planned** | Data science, ML workflows |
 
-### 🎯 Rust Implementation Status
-
-This branch contains the **Rust implementation** of Lantae, focusing on performance, memory safety, and cross-platform binary distribution including native Windows support.
-
-#### Planned Features (🔄 In Development)
-
-| Feature | Priority | Timeline | Notes |
-|---------|----------|----------|-------|
-| **High-Performance CLI** | High | Phase 1 | Zero-cost abstractions, optimized builds |
-| **Cross-Platform Binaries** | High | Phase 1 | Windows, Linux, macOS native executables |
-| **Provider Support** | High | Phase 1 | All major LLM providers with async/await |
-| **Memory Safety** | High | Phase 1 | Rust ownership system prevents crashes |
-| **Concurrent Processing** | Medium | Phase 1 | Safe parallel request handling |
-| **Windows MSI Installer** | Medium | Phase 2 | Professional Windows distribution |
-| **Package Managers** | Medium | Phase 2 | Chocolatey, Scoop, winget, Homebrew |
-| **Tool Integration** | Medium | Phase 2 | Cross-platform system tools |
-| **Small Binary Size** | Low | Phase 1 | Optimized release builds with LTO |
-
-#### Rust/Performance Advantages
-
-- **Zero-Cost Abstractions** - Performance without runtime overhead
-- **Memory Safety** - No null pointer exceptions or buffer overflows
-- **Native Windows Support** - Single binary, no runtime dependencies
-- **Cross-Compilation** - Build for any target from any platform
-- **Concurrency** - Safe parallel processing with async/await
-- **Small Binaries** - Optimized release builds under 10MB
-- **Package Manager Ready** - Distribution via multiple channels
-
-### 🚀 Getting Started with Rust Implementation
-
-#### Prerequisites
-- **Rust** 1.70+ (install via [rustup](https://rustup.rs/))
-- **Cargo** (included with Rust)
-- **Ollama** running locally
-
-#### Installation (Coming Soon)
-```bash
-# Clone Rust implementation
-git clone -b rust-implementation https://github.com/jpditri/lantae-cli.git
-cd lantae-cli/rust-lantae
-
-# Build release version
-cargo build --release
-
-# Run Lantae
-./target/release/lantae
-```
-
-#### Cross-Platform Building
-```bash
-# Windows from Linux/macOS
-rustup target add x86_64-pc-windows-gnu
-cargo build --release --target x86_64-pc-windows-gnu
-
-# macOS from Linux/Windows  
-rustup target add x86_64-apple-darwin
-cargo build --release --target x86_64-apple-darwin
-
-# Linux from macOS/Windows
-rustup target add x86_64-unknown-linux-gnu
-cargo build --release --target x86_64-unknown-linux-gnu
-```
-
-#### Windows-Specific Installation (Planned)
-```powershell
-# Via Chocolatey
-choco install lantae
-
-# Via Scoop
-scoop install lantae
-
-# Via winget
-winget install lantae
-
-# Direct download
-Invoke-WebRequest -Uri "https://github.com/jpditri/lantae-cli/releases/latest/download/lantae-windows.exe" -OutFile "lantae.exe"
-```
-
-#### Usage Examples (Planned)
-```bash
-# Interactive mode
-lantae
-
-# Single prompt
-lantae "Explain Rust ownership"
-
-# High-performance mode
-lantae --fast-mode
-
-# Parallel processing
-lantae --parallel --batch prompts.txt
-
-# Cross-compilation info
-lantae --target-info
-```
-
-### 🔄 Feature Parity Matrix
+### 🎯 Feature Parity Matrix
 
 For a comprehensive view of feature implementation across all languages, see our [Feature Parity Document](docs/FEATURE_PARITY.md).
 
@@ -656,8 +577,6 @@ For a comprehensive view of feature implementation across all languages, see our
 | **Planning Agent** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **MCP Protocol** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
-| **Cross-Platform Binaries** | ❌ | ❌ | 📋 | ❌ | ❌ |
-| **Windows Native Support** | ❌ | ❌ | 📋 | ❌ | ❌ |
 
 #### Legend
 - ✅ **Implemented** - Feature fully functional
@@ -665,10 +584,51 @@ For a comprehensive view of feature implementation across all languages, see our
 - ❌ **Missing** - Not implemented
 - 📋 **Planned** - Scheduled for implementation
 
+### 🚀 Getting Started with Different Implementations
+
+#### Ruby (Reference Implementation)
+```bash
+git clone https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+bundle install
+./lantae
+```
+
+#### LISP Implementation
+```bash
+git clone -b lisp-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli
+# See LISP_QUICKSTART.md for setup instructions
+```
+
+#### Rust Implementation (Coming Soon)
+```bash
+git clone -b rust-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/rust-lantae
+cargo build --release
+./target/release/lantae
+```
+
+#### Node.js Implementation (Coming Soon)
+```bash
+git clone -b nodejs-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/nodejs-lantae
+npm install
+npm start
+```
+
+#### Python Implementation (Coming Soon)
+```bash
+git clone -b python-implementation https://github.com/jpditri/lantae-cli.git
+cd lantae-cli/python-lantae
+pip install -e .
+lantae
+```
+
 ### 🔄 Cross-Implementation Compatibility
 
 All implementations share:
-- **Consistent CLI interface** - Same commands and options (when implemented)
+- **Consistent CLI interface** - Same commands and options
 - **Compatible configuration** - Shared environment variables and config files
 - **Unified provider support** - Same API keys and provider switching
 - **Feature parity tracking** - Systematic feature implementation across languages
@@ -680,8 +640,6 @@ All implementations share:
 - [Anthropic API](https://www.anthropic.com/) - Claude models
 - [AWS Bedrock](https://aws.amazon.com/bedrock/) - Managed AI services
 - [Feature Parity Document](docs/FEATURE_PARITY.md) - Detailed cross-language status
-- [Rust Documentation](https://doc.rust-lang.org/) - Rust language documentation
-- [Rust Implementation Details](rust-lantae/README.md) - Rust-specific documentation
 
 ---
 

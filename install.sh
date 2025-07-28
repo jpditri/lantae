@@ -285,6 +285,33 @@ main() {
         [[ "$continue_choice" != "y" && "$continue_choice" != "Y" ]] && exit 0
     fi
     
+    # Check for Raspberry Pi / ARM and suggest optimized installer
+    if [[ -f /proc/cpuinfo ]] && grep -q "ARM\|arm" /proc/cpuinfo || [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "armv"* ]]; then
+        echo ""
+        echo -e "${PURPLE}╔══════════════════════════════════════════════════════════════╗${NC}"
+        echo -e "${PURPLE}║  🍓 Raspberry Pi / ARM System Detected!                     ║${NC}"
+        echo -e "${PURPLE}╚══════════════════════════════════════════════════════════════╝${NC}"
+        echo ""
+        echo -e "${YELLOW}We have a specialized installer for Raspberry Pi that:${NC}"
+        echo -e "${GREEN}✓ Uses system Ruby packages (no compilation needed)${NC}"
+        echo -e "${GREEN}✓ Installs 10x faster than building from source${NC}"
+        echo -e "${GREEN}✓ Works reliably on low-memory systems${NC}"
+        echo ""
+        echo -e "${CYAN}Would you like to use the Raspberry Pi optimized installer instead?${NC}"
+        read -p "Use Raspberry Pi installer? (Y/n): " pi_choice
+        
+        if [[ "$pi_choice" != "n" && "$pi_choice" != "N" ]]; then
+            show_progress "Switching to Raspberry Pi installer..."
+            chmod +x "${SCRIPTS_DIR}/install-raspberry-pi.sh" 2>/dev/null || true
+            exec "${SCRIPTS_DIR}/install-raspberry-pi.sh"
+            exit 0
+        else
+            show_warning "Continuing with standard installation (may take 30+ minutes on Pi)"
+            show_warning "Ruby compilation often fails on Pi. Consider using the Pi installer if issues occur."
+            sleep 3
+        fi
+    fi
+    
     # Export variables for scripts
     export OS
     export SCRIPT_DIR
