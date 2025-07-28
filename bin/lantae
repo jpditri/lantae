@@ -95,8 +95,12 @@ class ProviderManager
     @current_provider = 'ollama'
     @current_model = 'cogito:latest'
     
-    # Set tool manager for Ollama provider
-    @providers['ollama'].set_tool_manager(@tool_manager) if @tool_manager
+    # Set tool manager for all providers
+    if @tool_manager
+      @providers.each do |name, provider|
+        provider.set_tool_manager(@tool_manager) if provider.respond_to?(:set_tool_manager)
+      end
+    end
   end
 
   attr_accessor :current_model, :current_provider
@@ -276,11 +280,19 @@ end
 class OpenAIProvider
   def initialize(secret_manager)
     @secret_manager = secret_manager
+    @tool_manager = nil
+  end
+
+  def set_tool_manager(tool_manager)
+    @tool_manager = tool_manager
   end
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('openai')
     raise 'OpenAI API key not found in environment or AWS Secrets Manager' unless api_key
+
+    # Add tool context to the system message
+    enhanced_messages = enhance_messages_with_tools(messages)
 
     uri = URI('https://api.openai.com/v1/chat/completions')
     http = Net::HTTP.new(uri.host, uri.port)
@@ -291,7 +303,7 @@ class OpenAIProvider
     request['Content-Type'] = 'application/json'
     request.body = {
       model: model,
-      messages: messages,
+      messages: enhanced_messages,
       temperature: (options[:temperature] || 0.1).to_f,
       max_tokens: 4096
     }.to_json
@@ -303,7 +315,65 @@ class OpenAIProvider
     end
 
     data = JSON.parse(response.body)
-    data['choices'][0]['message']['content']
+    content = data['choices'][0]['message']['content']
+    
+    # Process tool calls in the response
+    content = process_tool_calls(content) if @tool_manager
+    
+    content
+  end
+
+  private
+
+  def enhance_messages_with_tools(messages)
+    enhanced_messages = messages.dup
+    
+    if @tool_manager && !enhanced_messages.empty?
+      tools_context = @tool_manager.get_tools_context
+      system_message = {
+        role: 'system',
+        content: "You are an AI assistant with access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+      }
+      
+      # Insert system message at the beginning if it doesn't exist, or merge with existing system message
+      if enhanced_messages[0] && enhanced_messages[0][:role] == 'system'
+        enhanced_messages[0][:content] = system_message[:content] + "\n\n" + enhanced_messages[0][:content]
+      else
+        enhanced_messages.unshift(system_message)
+      end
+    end
+    
+    enhanced_messages
+  end
+
+  def process_tool_calls(content)
+    processed_content = content.dup
+    
+    content.scan(/TOOL_CALL:\s*([^\n]+)/) do |tool_call_match|
+      tool_call = tool_call_match[0].strip
+      tool_name, *args = tool_call.split(' ')
+      
+      begin
+        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        result = @tool_manager.execute_tool(tool_name, args.join(' '))
+        
+        # Replace the tool call with the result
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+        
+        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+      rescue => error
+        error_msg = "Error executing #{tool_name}: #{error.message}"
+        puts "❌ #{error_msg}"
+        
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+      end
+    end
+    
+    processed_content
   end
 
   def list_models
@@ -314,11 +384,19 @@ end
 class AnthropicProvider
   def initialize(secret_manager)
     @secret_manager = secret_manager
+    @tool_manager = nil
+  end
+
+  def set_tool_manager(tool_manager)
+    @tool_manager = tool_manager
   end
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('anthropic')
     raise 'Anthropic API key not found in environment or AWS Secrets Manager' unless api_key
+
+    # Add tool context to the system message
+    enhanced_messages = enhance_messages_with_tools(messages)
 
     uri = URI('https://api.anthropic.com/v1/messages')
     http = Net::HTTP.new(uri.host, uri.port)
@@ -332,7 +410,7 @@ class AnthropicProvider
       model: model,
       max_tokens: 4096,
       temperature: (options[:temperature] || 0.1).to_f,
-      messages: messages
+      messages: enhanced_messages
     }.to_json
 
     response = http.request(request)
@@ -342,7 +420,65 @@ class AnthropicProvider
     end
 
     data = JSON.parse(response.body)
-    data['content'][0]['text']
+    content = data['content'][0]['text']
+    
+    # Process tool calls in the response
+    content = process_tool_calls(content) if @tool_manager
+    
+    content
+  end
+
+  private
+
+  def enhance_messages_with_tools(messages)
+    enhanced_messages = messages.dup
+    
+    if @tool_manager && !enhanced_messages.empty?
+      tools_context = @tool_manager.get_tools_context
+      system_message = {
+        role: 'system',
+        content: "You are an AI assistant with access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+      }
+      
+      # Insert system message at the beginning if it doesn't exist, or merge with existing system message
+      if enhanced_messages[0] && enhanced_messages[0][:role] == 'system'
+        enhanced_messages[0][:content] = system_message[:content] + "\n\n" + enhanced_messages[0][:content]
+      else
+        enhanced_messages.unshift(system_message)
+      end
+    end
+    
+    enhanced_messages
+  end
+
+  def process_tool_calls(content)
+    processed_content = content.dup
+    
+    content.scan(/TOOL_CALL:\s*([^\n]+)/) do |tool_call_match|
+      tool_call = tool_call_match[0].strip
+      tool_name, *args = tool_call.split(' ')
+      
+      begin
+        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        result = @tool_manager.execute_tool(tool_name, args.join(' '))
+        
+        # Replace the tool call with the result
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+        
+        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+      rescue => error
+        error_msg = "Error executing #{tool_name}: #{error.message}"
+        puts "❌ #{error_msg}"
+        
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+      end
+    end
+    
+    processed_content
   end
 
   def list_models
@@ -354,14 +490,22 @@ end
 class GeminiProvider
   def initialize(secret_manager)
     @secret_manager = secret_manager
+    @tool_manager = nil
+  end
+
+  def set_tool_manager(tool_manager)
+    @tool_manager = tool_manager
   end
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('gemini')
     raise 'Gemini API key not found in environment or AWS Secrets Manager' unless api_key
 
+    # Add tool context to the messages
+    enhanced_messages = enhance_messages_with_tools(messages)
+
     # Convert messages to Gemini format
-    contents = messages.map do |msg|
+    contents = enhanced_messages.map do |msg|
       {
         role: msg[:role] == 'assistant' ? 'model' : 'user',
         parts: [{ text: msg[:content] }]
@@ -389,7 +533,65 @@ class GeminiProvider
     end
 
     data = JSON.parse(response.body)
-    data['candidates'][0]['content']['parts'][0]['text']
+    content = data['candidates'][0]['content']['parts'][0]['text']
+    
+    # Process tool calls in the response
+    content = process_tool_calls(content) if @tool_manager
+    
+    content
+  end
+
+  private
+
+  def enhance_messages_with_tools(messages)
+    enhanced_messages = messages.dup
+    
+    if @tool_manager && !enhanced_messages.empty?
+      tools_context = @tool_manager.get_tools_context
+      system_message = {
+        role: 'system',
+        content: "You are an AI assistant with access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+      }
+      
+      # Insert system message at the beginning if it doesn't exist, or merge with existing system message
+      if enhanced_messages[0] && enhanced_messages[0][:role] == 'system'
+        enhanced_messages[0][:content] = system_message[:content] + "\n\n" + enhanced_messages[0][:content]
+      else
+        enhanced_messages.unshift(system_message)
+      end
+    end
+    
+    enhanced_messages
+  end
+
+  def process_tool_calls(content)
+    processed_content = content.dup
+    
+    content.scan(/TOOL_CALL:\s*([^\n]+)/) do |tool_call_match|
+      tool_call = tool_call_match[0].strip
+      tool_name, *args = tool_call.split(' ')
+      
+      begin
+        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        result = @tool_manager.execute_tool(tool_name, args.join(' '))
+        
+        # Replace the tool call with the result
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+        
+        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+      rescue => error
+        error_msg = "Error executing #{tool_name}: #{error.message}"
+        puts "❌ #{error_msg}"
+        
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+      end
+    end
+    
+    processed_content
   end
 
   def list_models
@@ -400,11 +602,19 @@ end
 class MistralProvider
   def initialize(secret_manager)
     @secret_manager = secret_manager
+    @tool_manager = nil
+  end
+
+  def set_tool_manager(tool_manager)
+    @tool_manager = tool_manager
   end
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('mistral')
     raise 'Mistral API key not found in environment or AWS Secrets Manager' unless api_key
+
+    # Add tool context to the system message
+    enhanced_messages = enhance_messages_with_tools(messages)
 
     uri = URI('https://api.mistral.ai/v1/chat/completions')
     http = Net::HTTP.new(uri.host, uri.port)
@@ -415,7 +625,7 @@ class MistralProvider
     request['Content-Type'] = 'application/json'
     request.body = {
       model: model,
-      messages: messages,
+      messages: enhanced_messages,
       temperature: (options[:temperature] || 0.1).to_f,
       max_tokens: 4096
     }.to_json
@@ -427,7 +637,65 @@ class MistralProvider
     end
 
     data = JSON.parse(response.body)
-    data['choices'][0]['message']['content']
+    content = data['choices'][0]['message']['content']
+    
+    # Process tool calls in the response
+    content = process_tool_calls(content) if @tool_manager
+    
+    content
+  end
+
+  private
+
+  def enhance_messages_with_tools(messages)
+    enhanced_messages = messages.dup
+    
+    if @tool_manager && !enhanced_messages.empty?
+      tools_context = @tool_manager.get_tools_context
+      system_message = {
+        role: 'system',
+        content: "You are an AI assistant with access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+      }
+      
+      # Insert system message at the beginning if it doesn't exist, or merge with existing system message
+      if enhanced_messages[0] && enhanced_messages[0][:role] == 'system'
+        enhanced_messages[0][:content] = system_message[:content] + "\n\n" + enhanced_messages[0][:content]
+      else
+        enhanced_messages.unshift(system_message)
+      end
+    end
+    
+    enhanced_messages
+  end
+
+  def process_tool_calls(content)
+    processed_content = content.dup
+    
+    content.scan(/TOOL_CALL:\s*([^\n]+)/) do |tool_call_match|
+      tool_call = tool_call_match[0].strip
+      tool_name, *args = tool_call.split(' ')
+      
+      begin
+        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        result = @tool_manager.execute_tool(tool_name, args.join(' '))
+        
+        # Replace the tool call with the result
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+        
+        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+      rescue => error
+        error_msg = "Error executing #{tool_name}: #{error.message}"
+        puts "❌ #{error_msg}"
+        
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+      end
+    end
+    
+    processed_content
   end
 
   def list_models
@@ -438,11 +706,19 @@ end
 class PerplexityProvider
   def initialize(secret_manager)
     @secret_manager = secret_manager
+    @tool_manager = nil
+  end
+
+  def set_tool_manager(tool_manager)
+    @tool_manager = tool_manager
   end
 
   def chat(model, messages, options = {})
     api_key = @secret_manager.get_api_key('perplexity')
     raise 'Perplexity API key not found in environment or AWS Secrets Manager' unless api_key
+
+    # Add tool context to the system message
+    enhanced_messages = enhance_messages_with_tools(messages)
 
     uri = URI('https://api.perplexity.ai/chat/completions')
     http = Net::HTTP.new(uri.host, uri.port)
@@ -453,7 +729,7 @@ class PerplexityProvider
     request['Content-Type'] = 'application/json'
     request.body = {
       model: model,
-      messages: messages,
+      messages: enhanced_messages,
       temperature: (options[:temperature] || 0.1).to_f,
       max_tokens: 4096
     }.to_json
@@ -465,7 +741,65 @@ class PerplexityProvider
     end
 
     data = JSON.parse(response.body)
-    data['choices'][0]['message']['content']
+    content = data['choices'][0]['message']['content']
+    
+    # Process tool calls in the response
+    content = process_tool_calls(content) if @tool_manager
+    
+    content
+  end
+
+  private
+
+  def enhance_messages_with_tools(messages)
+    enhanced_messages = messages.dup
+    
+    if @tool_manager && !enhanced_messages.empty?
+      tools_context = @tool_manager.get_tools_context
+      system_message = {
+        role: 'system',
+        content: "You are an AI assistant with access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+      }
+      
+      # Insert system message at the beginning if it doesn't exist, or merge with existing system message
+      if enhanced_messages[0] && enhanced_messages[0][:role] == 'system'
+        enhanced_messages[0][:content] = system_message[:content] + "\n\n" + enhanced_messages[0][:content]
+      else
+        enhanced_messages.unshift(system_message)
+      end
+    end
+    
+    enhanced_messages
+  end
+
+  def process_tool_calls(content)
+    processed_content = content.dup
+    
+    content.scan(/TOOL_CALL:\s*([^\n]+)/) do |tool_call_match|
+      tool_call = tool_call_match[0].strip
+      tool_name, *args = tool_call.split(' ')
+      
+      begin
+        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        result = @tool_manager.execute_tool(tool_name, args.join(' '))
+        
+        # Replace the tool call with the result
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+        
+        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+      rescue => error
+        error_msg = "Error executing #{tool_name}: #{error.message}"
+        puts "❌ #{error_msg}"
+        
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+      end
+    end
+    
+    processed_content
   end
 
   def list_models
@@ -477,10 +811,18 @@ class BedrockProvider
   def initialize(region = 'us-east-1')
     @region = region
     @client = nil
+    @tool_manager = nil
+  end
+
+  def set_tool_manager(tool_manager)
+    @tool_manager = tool_manager
   end
 
   def chat(model, messages, options = {})
     init_client
+
+    # Add tool context to the system message
+    enhanced_messages = enhance_messages_with_tools(messages)
 
     model_map = {
       'claude-3-sonnet' => 'anthropic.claude-3-sonnet-20240229-v1:0',
@@ -499,10 +841,10 @@ class BedrockProvider
         anthropic_version: 'bedrock-2023-05-31',
         max_tokens: 4096,
         temperature: (options[:temperature] || 0.1).to_f,
-        messages: messages
+        messages: enhanced_messages
       }.to_json
     elsif bedrock_model_id.include?('amazon.titan')
-      prompt = messages.map { |m| "#{m[:role]}: #{m[:content]}" }.join("\n")
+      prompt = enhanced_messages.map { |m| "#{m[:role]}: #{m[:content]}" }.join("\n")
       body = {
         inputText: prompt,
         textGenerationConfig: {
@@ -521,11 +863,16 @@ class BedrockProvider
 
     response_body = JSON.parse(response.body.read)
 
-    if bedrock_model_id.include?('anthropic.claude')
+    content = if bedrock_model_id.include?('anthropic.claude')
       response_body['content'][0]['text']
     elsif bedrock_model_id.include?('amazon.titan')
       response_body['results'][0]['outputText']
     end
+
+    # Process tool calls in the response
+    content = process_tool_calls(content) if @tool_manager
+    
+    content
   rescue Aws::Errors::MissingCredentialsError
     raise 'AWS credentials not found. Configure AWS CLI or environment variables.'
   end
@@ -539,6 +886,57 @@ class BedrockProvider
   def init_client
     return if @client
     @client = Aws::BedrockRuntime::Client.new(region: @region)
+  end
+
+  def enhance_messages_with_tools(messages)
+    enhanced_messages = messages.dup
+    
+    if @tool_manager && !enhanced_messages.empty?
+      tools_context = @tool_manager.get_tools_context
+      system_message = {
+        role: 'system',
+        content: "You are an AI assistant with access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+      }
+      
+      # Insert system message at the beginning if it doesn't exist, or merge with existing system message
+      if enhanced_messages[0] && enhanced_messages[0][:role] == 'system'
+        enhanced_messages[0][:content] = system_message[:content] + "\n\n" + enhanced_messages[0][:content]
+      else
+        enhanced_messages.unshift(system_message)
+      end
+    end
+    
+    enhanced_messages
+  end
+
+  def process_tool_calls(content)
+    processed_content = content.dup
+    
+    content.scan(/TOOL_CALL:\s*([^\n]+)/) do |tool_call_match|
+      tool_call = tool_call_match[0].strip
+      tool_name, *args = tool_call.split(' ')
+      
+      begin
+        puts "\n🔧 Executing tool: #{tool_name} #{args.join(' ')}"
+        result = @tool_manager.execute_tool(tool_name, args.join(' '))
+        
+        # Replace the tool call with the result
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Result:\n```\n#{result}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+        
+        puts "✅ Tool result: #{result[0..100]}#{result.length > 100 ? '...' : ''}"
+      rescue => error
+        error_msg = "Error executing #{tool_name}: #{error.message}"
+        puts "❌ #{error_msg}"
+        
+        tool_call_line = "TOOL_CALL: #{tool_call}"
+        replacement = "#{tool_call_line}\n\nTool Error:\n```\n#{error_msg}\n```\n"
+        processed_content = processed_content.gsub(tool_call_line, replacement)
+      end
+    end
+    
+    processed_content
   end
 end
 
