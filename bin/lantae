@@ -143,8 +143,8 @@ class ProviderManager
       'mistral' => MistralProvider.new(secret_manager),
       'perplexity' => PerplexityProvider.new(secret_manager)
     }
-    @current_provider = 'anthropic'  # Default to Anthropic
-    @current_model = 'claude-3-5-sonnet-20241022'  # Default Claude model
+    @current_provider = 'ollama'  # Default to Ollama
+    @current_model = 'qwen3:0.5b'  # Default Qwen3 model
     
     # Set tool manager for all providers
     if @tool_manager
@@ -165,7 +165,7 @@ class ProviderManager
     else
       # Set default model for provider
       defaults = {
-        'ollama' => 'cogito:latest',
+        'ollama' => 'qwen3:0.5b',
         'openai' => 'gpt-4o',
         'anthropic' => 'claude-3-5-sonnet-20241022',
         'claude' => 'claude-3-5-sonnet-20241022',
@@ -2079,7 +2079,7 @@ def setup_autocomplete(provider_manager, tool_manager, mcp_manager = nil)
     models = provider_manager.list_models || []
     # Add some default models if list is empty
     if models.empty?
-      models = %w[cogito:latest llama3:latest codellama:latest mistral:latest]
+      models = %w[qwen3:0.5b llama3:latest codellama:latest mistral:latest]
     end
   rescue => e
     # Fallback to default models if can't be fetched
@@ -3182,8 +3182,8 @@ end
 
 def main
   options = {
-    model: 'claude-3-5-sonnet-20241022',
-    provider: 'anthropic',
+    model: 'qwen3:0.5b',
+    provider: 'ollama',
     formatted_output: true,  # Enable formatted responses by default
     url: 'http://localhost:11434',
     region: 'us-east-1',
