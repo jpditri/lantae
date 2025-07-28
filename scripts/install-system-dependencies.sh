@@ -109,7 +109,7 @@ install_core_packages() {
             ;;
             
         "debian")
-            # Essential packages for Debian/Ubuntu
+            # Essential packages for Debian/Ubuntu/Raspberry Pi
             local debian_packages=(
                 "build-essential"
                 "git"
@@ -128,6 +128,33 @@ install_core_packages() {
                 "libxslt1-dev"
                 "libffi-dev"
             )
+            
+            # Add Raspberry Pi specific packages if ARM architecture detected
+            if [[ -f /proc/cpuinfo ]] && grep -q "ARM\|arm" /proc/cpuinfo; then
+                show_progress "ARM architecture detected (possibly Raspberry Pi)"
+                debian_packages+=(
+                    "bc"                    # Basic calculator for memory checks
+                    "libc6-dev"            # C library development files
+                    "libgmp-dev"           # GNU Multiple Precision Arithmetic Library
+                    "libncurses5-dev"      # Terminal handling library
+                    "autoconf"             # Automatic configure script builder
+                    "bison"                # Parser generator
+                    "automake"             # Tool for generating Makefiles
+                    "libtool"              # Generic library support script
+                    "pkg-config"           # Package configuration helper
+                )
+                
+                # For very limited memory systems, suggest alternatives
+                if [[ -f /proc/meminfo ]]; then
+                    local mem_gb
+                    mem_gb=$(awk '/MemTotal/ {printf "%.1f", $2/1024/1024}' /proc/meminfo)
+                    if (( $(echo "$mem_gb < 1.5" | bc -l 2>/dev/null || echo "1") )); then
+                        show_progress "Low memory system detected (${mem_gb}GB)"
+                        show_progress "Consider using system Ruby packages instead of compiling"
+                        show_progress "Alternative: sudo apt install -y ruby ruby-dev ruby-bundler"
+                    fi
+                fi
+            fi
             
             for package in "${debian_packages[@]}"; do
                 if ! dpkg -l | grep -q "^ii  $package "; then

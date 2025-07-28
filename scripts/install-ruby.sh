@@ -134,11 +134,25 @@ configure_rbenv() {
     show_success "rbenv configured in shell"
 }
 
-# Get latest Ruby version
+# Get appropriate Ruby version for the system
 get_latest_ruby_version() {
-    if command_exists rbenv; then
-        # Get the latest stable Ruby 3.x version
-        rbenv install --list | grep -E "^\s*3\.[0-9]+\.[0-9]+$" | tail -1 | tr -d ' '
+    # Check if we're on Raspberry Pi or ARM architecture
+    if [[ -f /proc/cpuinfo ]] && grep -q "ARM\|arm" /proc/cpuinfo; then
+        show_warning "ARM architecture detected (possibly Raspberry Pi)"
+        # Use a more stable Ruby version for ARM
+        echo "3.1.6"  # Well-tested ARM-compatible version
+    elif [[ "$(uname -m)" == "aarch64" || "$(uname -m)" == "armv"* ]]; then
+        show_warning "ARM architecture detected"
+        echo "3.1.6"  # Well-tested ARM-compatible version
+    elif command_exists rbenv; then
+        # Get the latest stable Ruby 3.x version for x86/x64
+        local latest_version
+        latest_version=$(rbenv install --list 2>/dev/null | grep -E "^\s*3\.[0-9]+\.[0-9]+$" | tail -1 | tr -d ' ')
+        if [[ -n "$latest_version" ]]; then
+            echo "$latest_version"
+        else
+            echo "3.3.0"  # Fallback version
+        fi
     else
         echo "3.3.0"  # Fallback version
     fi
@@ -180,16 +194,48 @@ install_ruby() {
     # Install Ruby (this can take a while)
     show_progress "Compiling Ruby $ruby_version (this may take 10-15 minutes)..."
     
-    # Set compilation flags for better performance and compatibility
-    export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl 2>/dev/null || echo /usr)" 2>/dev/null || true
-    export CFLAGS="-O2"
+    # Set compilation flags based on architecture
+    if [[ -f /proc/cpuinfo ]] && grep -q "ARM\|arm" /proc/cpuinfo; then
+        show_progress "Configuring ARM-specific compilation flags..."
+        # ARM/Raspberry Pi specific flags
+        export RUBY_CONFIGURE_OPTS="--disable-install-doc --with-jemalloc=no"
+        export CFLAGS="-O2 -pipe"
+        export MAKE_OPTS="-j2"  # Limit parallel jobs to prevent memory issues
+        
+        # Check available memory
+        if [[ -f /proc/meminfo ]]; then
+            local mem_gb
+            mem_gb=$(awk '/MemTotal/ {printf "%.1f", $2/1024/1024}' /proc/meminfo)
+            if (( $(echo "$mem_gb < 2" | bc -l 2>/dev/null || echo "1") )); then
+                show_warning "Low memory detected (${mem_gb}GB). Using single-threaded compilation."
+                export MAKE_OPTS="-j1"
+            fi
+        fi
+    else
+        # x86/x64 flags
+        export RUBY_CONFIGURE_OPTS="--with-openssl-dir=$(brew --prefix openssl 2>/dev/null || echo /usr)" 2>/dev/null || true
+        export CFLAGS="-O2"
+    fi
     
     if ! rbenv install "$ruby_version"; then
         show_warning "Ruby compilation failed. Trying alternative installation method..."
         
-        # Try with different flags
-        unset RUBY_CONFIGURE_OPTS CFLAGS
-        rbenv install "$ruby_version" || error_exit "Failed to install Ruby $ruby_version"
+        # Try with minimal flags for ARM systems
+        if [[ -f /proc/cpuinfo ]] && grep -q "ARM\|arm" /proc/cpuinfo; then
+            show_progress "Attempting ARM-friendly installation..."
+            unset RUBY_CONFIGURE_OPTS CFLAGS MAKE_OPTS
+            export RUBY_CONFIGURE_OPTS="--disable-install-doc --disable-install-rdoc --with-jemalloc=no --disable-shared"
+            export MAKE_OPTS="-j1"
+            rbenv install "$ruby_version" || {
+                show_warning "Still failing. Trying with system Ruby packages..."
+                # For Raspberry Pi, suggest using system packages
+                error_exit "Ruby compilation failed. Try installing system Ruby with: sudo apt update && sudo apt install -y ruby ruby-dev ruby-bundler"
+            }
+        else
+            # Try with different flags for other systems
+            unset RUBY_CONFIGURE_OPTS CFLAGS
+            rbenv install "$ruby_version" || error_exit "Failed to install Ruby $ruby_version"
+        fi
     fi
     
     # Set as global version

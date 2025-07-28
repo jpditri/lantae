@@ -23,12 +23,89 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
 
-# Error handling
+# Error handling with detailed output and recommendations
 error_exit() {
-    echo -e "${RED}ERROR: $1${NC}" >&2
-    log "ERROR: $1"
-    echo -e "${YELLOW}Check the log file for details: $LOG_FILE${NC}"
-    exit 1
+    local error_msg="$1"
+    local error_code="${2:-1}"
+    
+    echo -e "\n${RED}╔══════════════════════════════════════════════════════════════╗${NC}" >&2
+    echo -e "${RED}║  ❌ INSTALLATION FAILED                                      ║${NC}" >&2
+    echo -e "${RED}╚══════════════════════════════════════════════════════════════╝${NC}" >&2
+    echo -e "${RED}ERROR: $error_msg${NC}" >&2
+    log "ERROR: $error_msg"
+    
+    # Show last few lines of log file for context
+    if [[ -f "$LOG_FILE" ]]; then
+        echo -e "\n${YELLOW}Last error details from log:${NC}" >&2
+        echo -e "${YELLOW}─────────────────────────────${NC}" >&2
+        tail -10 "$LOG_FILE" >&2
+        echo -e "${YELLOW}─────────────────────────────${NC}" >&2
+    fi
+    
+    # Provide troubleshooting recommendations
+    echo -e "\n${CYAN}🔧 TROUBLESHOOTING STEPS:${NC}" >&2
+    echo -e "${CYAN}1. Check the full log file: ${YELLOW}$LOG_FILE${NC}" >&2
+    echo -e "${CYAN}2. Ensure you have admin/sudo privileges${NC}" >&2
+    echo -e "${CYAN}3. Check your internet connection${NC}" >&2
+    echo -e "${CYAN}4. Try running individual installation scripts manually:${NC}" >&2
+    echo -e "   ${YELLOW}chmod +x scripts/*.sh${NC}" >&2
+    echo -e "   ${YELLOW}./scripts/install-system-dependencies.sh${NC}" >&2
+    echo -e "   ${YELLOW}./scripts/install-ruby.sh${NC}" >&2
+    echo -e "${CYAN}5. For specific OS issues, check the README for manual installation${NC}" >&2
+    echo -e "${CYAN}6. Report issues at: ${BLUE}https://github.com/jpditri/lantae-cli/issues${NC}" >&2
+    
+    # OS-specific recommendations
+    local os=$(detect_os)
+    case "$os" in
+        "macos")
+            echo -e "\n${PURPLE}📱 macOS-specific troubleshooting:${NC}" >&2
+            echo -e "${PURPLE}• Install Xcode Command Line Tools: ${YELLOW}xcode-select --install${NC}" >&2
+            echo -e "${PURPLE}• Install Homebrew if missing: ${YELLOW}/bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"${NC}" >&2
+            echo -e "${PURPLE}• Update Homebrew: ${YELLOW}brew update && brew upgrade${NC}" >&2
+            ;;
+        "debian")
+            echo -e "\n${PURPLE}🐧 Ubuntu/Debian-specific troubleshooting:${NC}" >&2
+            echo -e "${PURPLE}• Update package lists: ${YELLOW}sudo apt update${NC}" >&2
+            echo -e "${PURPLE}• Install build essentials: ${YELLOW}sudo apt install -y build-essential curl git${NC}" >&2
+            echo -e "${PURPLE}• Fix broken packages: ${YELLOW}sudo apt --fix-broken install${NC}" >&2
+            
+            # Check for Raspberry Pi specific issues
+            if [[ -f /proc/cpuinfo ]] && grep -q "ARM\|arm" /proc/cpuinfo; then
+                echo -e "\n${PURPLE}🍓 Raspberry Pi-specific troubleshooting:${NC}" >&2
+                echo -e "${PURPLE}• Use system Ruby (recommended): ${YELLOW}sudo apt install -y ruby ruby-dev ruby-bundler${NC}" >&2
+                echo -e "${PURPLE}• Increase swap space: ${YELLOW}sudo dphys-swapfile swapoff && sudo nano /etc/dphys-swapfile${NC}" >&2
+                echo -e "${PURPLE}• Set CONF_SWAPSIZE=1024 or higher, then: ${YELLOW}sudo dphys-swapfile setup && sudo dphys-swapfile swapon${NC}" >&2
+                echo -e "${PURPLE}• Install ARM Ruby dependencies: ${YELLOW}sudo apt install -y libc6-dev libgmp-dev autoconf bison${NC}" >&2
+                echo -e "${PURPLE}• For compilation issues, try: ${YELLOW}export MAKE_OPTS=\"-j1\" && export RUBY_CONFIGURE_OPTS=\"--disable-install-doc\"${NC}" >&2
+            fi
+            ;;
+        "redhat")
+            echo -e "\n${PURPLE}🎩 CentOS/RHEL-specific troubleshooting:${NC}" >&2
+            echo -e "${PURPLE}• Enable EPEL repository: ${YELLOW}sudo yum install -y epel-release${NC}" >&2
+            echo -e "${PURPLE}• Install development tools: ${YELLOW}sudo yum groupinstall -y \"Development Tools\"${NC}" >&2
+            echo -e "${PURPLE}• Update packages: ${YELLOW}sudo yum update -y${NC}" >&2
+            ;;
+        "arch")
+            echo -e "\n${PURPLE}🏗️ Arch Linux-specific troubleshooting:${NC}" >&2
+            echo -e "${PURPLE}• Update system: ${YELLOW}sudo pacman -Syu${NC}" >&2
+            echo -e "${PURPLE}• Install base-devel: ${YELLOW}sudo pacman -S --needed base-devel${NC}" >&2
+            echo -e "${PURPLE}• Install git and curl: ${YELLOW}sudo pacman -S git curl${NC}" >&2
+            ;;
+    esac
+    
+    echo -e "\n${YELLOW}💡 Quick recovery options:${NC}" >&2
+    echo -e "${YELLOW}• Try the minimal installation: Rerun with option 4${NC}" >&2
+    echo -e "${YELLOW}• Manual Ruby installation via rbenv or rvm${NC}" >&2
+    echo -e "${YELLOW}• Use Docker container (if Docker is available)${NC}" >&2
+    
+    echo -e "\n${GREEN}📝 When reporting issues, please include:${NC}" >&2
+    echo -e "${GREEN}• Your OS and version ($(uname -a))${NC}" >&2
+    echo -e "${GREEN}• The installation log file contents${NC}" >&2
+    echo -e "${GREEN}• The exact error message above${NC}" >&2
+    
+    echo -e "\n${RED}Installation terminated with exit code $error_code${NC}" >&2
+    log "Installation terminated with exit code $error_code"
+    exit "$error_code"
 }
 
 # Progress indicator
@@ -160,18 +237,34 @@ check_script() {
     fi
 }
 
-# Run installation script with error handling
+# Run installation script with enhanced error handling
 run_script() {
     local script_name="$1"
     local script_path="${SCRIPTS_DIR}/${script_name}"
+    local temp_log="${LOG_FILE}.${script_name}.tmp"
     
     show_progress "Running $script_name..."
     check_script "$script_path"
     
-    if "$script_path" >> "$LOG_FILE" 2>&1; then
+    # Run script and capture both stdout and stderr
+    if "$script_path" > "$temp_log" 2>&1; then
+        # Success - append to main log
+        cat "$temp_log" >> "$LOG_FILE"
+        rm -f "$temp_log"
         show_success "$script_name completed"
     else
-        error_exit "$script_name failed. Check log for details."
+        local exit_code=$?
+        # Failure - show error details
+        cat "$temp_log" >> "$LOG_FILE"
+        
+        echo -e "\n${RED}Script $script_name failed with exit code $exit_code${NC}" >&2
+        echo -e "${YELLOW}Last output from $script_name:${NC}" >&2
+        echo -e "${YELLOW}─────────────────────────────${NC}" >&2
+        tail -20 "$temp_log" >&2
+        echo -e "${YELLOW}─────────────────────────────${NC}" >&2
+        
+        rm -f "$temp_log"
+        error_exit "$script_name failed with exit code $exit_code" "$exit_code"
     fi
 }
 
