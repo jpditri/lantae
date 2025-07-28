@@ -1,7 +1,5 @@
 require 'net/http'
 require 'json'
-require 'webrick'
-require 'securerandom'
 
 module Lantae
   class APIKeyAuthorizer
