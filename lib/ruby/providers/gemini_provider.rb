@@ -30,7 +30,14 @@ module Lantae
         end
 
         data = JSON.parse(response.body)
-        data['candidates'][0]['content']['parts'][0]['text']
+        candidate = data['candidates'][0]
+        
+        # Check for function calls
+        if candidate['content']['parts'].any? { |part| part['functionCall'] }
+          handle_function_calls(candidate['content'], model, messages, options)
+        else
+          candidate['content']['parts'][0]['text']
+        end
       end
 
       def list_models
@@ -66,14 +73,77 @@ module Lantae
       def build_request(uri, contents, options)
         request = Net::HTTP::Post.new(uri)
         request['Content-Type'] = 'application/json'
-        request.body = {
+        
+        body = {
           contents: contents,
           generationConfig: {
             temperature: (options[:temperature] || default_temperature).to_f,
             maxOutputTokens: options[:max_tokens] || max_tokens
           }
-        }.to_json
+        }
+        
+        # Add tools if available (Gemini uses "tools" with "functionDeclarations")
+        if options[:tools] && !options[:tools].empty?
+          body[:tools] = [{
+            functionDeclarations: options[:tools].map { |tool| convert_tool_to_gemini_format(tool) }
+          }]
+        end
+        
+        request.body = body.to_json
         request
+      end
+      
+      def convert_tool_to_gemini_format(tool)
+        {
+          name: tool[:name],
+          description: tool[:description],
+          parameters: tool[:parameters] || {}
+        }
+      end
+      
+      def handle_function_calls(content, model, messages, options)
+        function_responses = []
+        
+        content['parts'].each do |part|
+          next unless part['functionCall']
+          
+          function_name = part['functionCall']['name']
+          function_args = part['functionCall']['args'] || {}
+          
+          # Execute tool if tool_manager is available
+          if @tool_manager && @tool_manager.has_tool?(function_name)
+            result = @tool_manager.execute_tool(function_name, function_args)
+            function_responses << {
+              functionResponse: {
+                name: function_name,
+                response: result[:success] ? { result: result[:result] } : { error: result[:error] }
+              }
+            }
+          else
+            function_responses << {
+              functionResponse: {
+                name: function_name,
+                response: { error: "Function '#{function_name}' not available" }
+              }
+            }
+          end
+        end
+        
+        # If we have function responses, make another API call with them
+        if function_responses.any?
+          # Add model's message with function calls and user's function responses
+          new_messages = messages + [
+            { role: 'assistant', content: content['parts'].map { |p| p.to_json }.join(', ') },
+            { role: 'user', content: function_responses.map { |r| r.to_json }.join(', ') }
+          ]
+          
+          # Make follow-up request
+          chat(model, new_messages, options)
+        else
+          # Return text content if available
+          text_part = content['parts'].find { |p| p['text'] }
+          text_part ? text_part['text'] : ''
+        end
       end
     end
   end

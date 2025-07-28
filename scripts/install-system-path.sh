@@ -11,6 +11,23 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Detect OS
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    if [[ -f /etc/debian_version ]]; then
+        OS="debian"
+    elif [[ -f /etc/redhat-release ]]; then
+        OS="redhat"
+    elif [[ -f /etc/arch-release ]]; then
+        OS="arch"
+    else
+        OS="linux"
+    fi
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    OS="macos"
+else
+    OS="unknown"
+fi
+
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "${LOG_FILE:-install.log}"
 }
@@ -59,7 +76,7 @@ create_wrapper_script() {
     local lantae_path="$1"
     local wrapper_content
     
-    show_progress "Creating wrapper script..."
+    show_progress "Creating wrapper script..." >&2
     
     # Create wrapper script content
     wrapper_content="#!/bin/bash
@@ -69,7 +86,7 @@ create_wrapper_script() {
 LANTAE_HOME=\"$lantae_path\"
 
 # Change to lantae directory and run
-cd \"\$LANTAE_HOME\" && exec ./lantae \"\$@\"
+cd \"\$LANTAE_HOME\" && exec bundle exec ruby \"\$LANTAE_HOME/bin/lantae\" \"\$@\"
 "
     
     # Write wrapper script to temp location

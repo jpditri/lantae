@@ -93,8 +93,8 @@ install_gems() {
     # Check if Gemfile.lock exists and is recent
     if [[ -f "Gemfile.lock" ]]; then
         local gemfile_time gemfile_lock_time
-        gemfile_time=$(stat -f "%m" Gemfile 2>/dev/null || stat -c "%Y" Gemfile 2>/dev/null || echo "0")
-        gemfile_lock_time=$(stat -f "%m" Gemfile.lock 2>/dev/null || stat -c "%Y" Gemfile.lock 2>/dev/null || echo "0")
+        gemfile_time=$(stat -c "%Y" "Gemfile" 2>/dev/null || stat -f "%m" "Gemfile" 2>/dev/null || echo "0")
+        gemfile_lock_time=$(stat -c "%Y" "Gemfile.lock" 2>/dev/null || stat -f "%m" "Gemfile.lock" 2>/dev/null || echo "0")
         
         if [[ "$gemfile_lock_time" -gt "$gemfile_time" ]]; then
             show_progress "Gemfile.lock is up to date, running bundle install..."

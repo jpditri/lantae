@@ -24,7 +24,7 @@ module Lantae
           body: body
         })
 
-        parse_response(response, bedrock_model_id)
+        parse_response(response, bedrock_model_id, messages, options)
       rescue Aws::Errors::MissingCredentialsError
         raise 'AWS credentials not found. Configure AWS CLI or environment variables.'
       end
@@ -70,12 +70,20 @@ module Lantae
 
       def build_request_body(bedrock_model_id, messages, options)
         if bedrock_model_id.include?('anthropic.claude')
-          {
+          body = {
             anthropic_version: 'bedrock-2023-05-31',
             max_tokens: options[:max_tokens] || max_tokens,
             temperature: (options[:temperature] || default_temperature).to_f,
             messages: messages
-          }.to_json
+          }
+          
+          # Add tools if available (only for Claude models)
+          if options[:tools] && !options[:tools].empty?
+            body[:tools] = options[:tools]
+            body[:tool_choice] = options[:tool_choice] if options[:tool_choice]
+          end
+          
+          body.to_json
         elsif bedrock_model_id.include?('amazon.titan')
           prompt = messages.map { |m| "#{m[:role]}: #{m[:content]}" }.join("\n")
           {
@@ -90,15 +98,64 @@ module Lantae
         end
       end
 
-      def parse_response(response, bedrock_model_id)
+      def parse_response(response, bedrock_model_id, messages, options)
         response_body = JSON.parse(response.body.read)
 
         if bedrock_model_id.include?('anthropic.claude')
-          response_body['content'][0]['text']
+          # Handle tool use responses for Claude models
+          if response_body['content'].any? { |c| c['type'] == 'tool_use' }
+            handle_tool_use(response_body, bedrock_model_id, messages, options)
+          else
+            response_body['content'][0]['text']
+          end
         elsif bedrock_model_id.include?('amazon.titan')
           response_body['results'][0]['outputText']
         else
           raise "Unsupported model format: #{bedrock_model_id}"
+        end
+      end
+      
+      def handle_tool_use(response_data, model, messages, options)
+        tool_results = []
+        
+        response_data['content'].each do |content|
+          next unless content['type'] == 'tool_use'
+          
+          tool_name = content['name']
+          tool_input = content['input']
+          tool_use_id = content['id']
+          
+          # Execute tool if tool_manager is available
+          if @tool_manager && @tool_manager.has_tool?(tool_name)
+            result = @tool_manager.execute_tool(tool_name, tool_input)
+            tool_results << {
+              type: 'tool_result',
+              tool_use_id: tool_use_id,
+              content: result[:success] ? result[:result].to_s : "Error: #{result[:error]}"
+            }
+          else
+            tool_results << {
+              type: 'tool_result',
+              tool_use_id: tool_use_id,
+              content: "Tool '#{tool_name}' not available"
+            }
+          end
+        end
+        
+        # If we have tool results, make another API call with them
+        if tool_results.any?
+          # Add assistant's tool use message and tool results to conversation
+          new_messages = messages + [
+            { role: 'assistant', content: response_data['content'] },
+            { role: 'user', content: tool_results }
+          ]
+          
+          # Make follow-up request
+          chat(model, new_messages, options)
+        else
+          # Return any text content if no tools were executed
+          text_content = response_data['content'].find { |c| c['type'] == 'text' }
+          text_content ? text_content['text'] : ''
         end
       end
     end

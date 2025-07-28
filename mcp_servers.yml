@@ -1,0 +1,38 @@
+# Lantae MCP (Model Context Protocol) Servers Configuration
+# Configure external MCP servers for extended functionality
+
+mcp_servers:
+  # File system operations
+  - name: filesystem
+    transport: stdio
+    command: npx
+    args:
+      - "@modelcontextprotocol/server-filesystem"
+      - "."  # Current directory - adjust as needed
+    description: "File system operations via MCP"
+    enabled: true
+    
+  # Git operations
+  - name: git
+    transport: stdio
+    command: npx
+    args:
+      - "@modelcontextprotocol/server-git"
+    description: "Git operations via MCP"
+    enabled: false
+    
+  # SQLite database operations
+  - name: sqlite
+    transport: stdio
+    command: npx
+    args:
+      - "@modelcontextprotocol/server-sqlite"
+      - "data/lantae.db"
+    description: "SQLite database operations via MCP"
+    enabled: false
+
+# MCP Client Configuration
+mcp_client:
+  timeout: 30
+  max_retries: 3
+  debug: false
