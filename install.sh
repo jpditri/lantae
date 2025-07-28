@@ -68,6 +68,16 @@ error_exit() {
             echo -e "${PURPLE}• Update package lists: ${YELLOW}sudo apt update${NC}" >&2
             echo -e "${PURPLE}• Install build essentials: ${YELLOW}sudo apt install -y build-essential curl git${NC}" >&2
             echo -e "${PURPLE}• Fix broken packages: ${YELLOW}sudo apt --fix-broken install${NC}" >&2
+            
+            # Check for Raspberry Pi specific issues
+            if [[ -f /proc/cpuinfo ]] && grep -q "ARM\|arm" /proc/cpuinfo; then
+                echo -e "\n${PURPLE}🍓 Raspberry Pi-specific troubleshooting:${NC}" >&2
+                echo -e "${PURPLE}• Use system Ruby (recommended): ${YELLOW}sudo apt install -y ruby ruby-dev ruby-bundler${NC}" >&2
+                echo -e "${PURPLE}• Increase swap space: ${YELLOW}sudo dphys-swapfile swapoff && sudo nano /etc/dphys-swapfile${NC}" >&2
+                echo -e "${PURPLE}• Set CONF_SWAPSIZE=1024 or higher, then: ${YELLOW}sudo dphys-swapfile setup && sudo dphys-swapfile swapon${NC}" >&2
+                echo -e "${PURPLE}• Install ARM Ruby dependencies: ${YELLOW}sudo apt install -y libc6-dev libgmp-dev autoconf bison${NC}" >&2
+                echo -e "${PURPLE}• For compilation issues, try: ${YELLOW}export MAKE_OPTS=\"-j1\" && export RUBY_CONFIGURE_OPTS=\"--disable-install-doc\"${NC}" >&2
+            fi
             ;;
         "redhat")
             echo -e "\n${PURPLE}🎩 CentOS/RHEL-specific troubleshooting:${NC}" >&2
