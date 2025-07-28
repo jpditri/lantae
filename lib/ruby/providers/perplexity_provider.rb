@@ -25,7 +25,14 @@ module Lantae
         handle_api_error(response, 'Perplexity') unless response.code.start_with?('2')
 
         data = JSON.parse(response.body)
-        data['choices'][0]['message']['content']
+        choice = data['choices'][0]
+        
+        # Handle tool calls (if Perplexity supports them)
+        if choice['message']['tool_calls']
+          handle_tool_calls(choice['message'], model, messages, options)
+        else
+          choice['message']['content']
+        end
       end
 
       def list_models
@@ -61,13 +68,62 @@ module Lantae
         request = Net::HTTP::Post.new(uri)
         request['Authorization'] = "Bearer #{api_key}"
         request['Content-Type'] = 'application/json'
-        request.body = {
+        
+        body = {
           model: model,
           messages: messages,
           temperature: (options[:temperature] || default_temperature).to_f,
           max_tokens: options[:max_tokens] || max_tokens
-        }.to_json
+        }
+        
+        # Add tools if available (note: Perplexity may not support tools)
+        if options[:tools] && !options[:tools].empty?
+          body[:tools] = options[:tools]
+          body[:tool_choice] = options[:tool_choice] if options[:tool_choice]
+        end
+        
+        request.body = body.to_json
         request
+      end
+      
+      def handle_tool_calls(assistant_message, model, messages, options)
+        tool_results = []
+        
+        assistant_message['tool_calls'].each do |tool_call|
+          tool_name = tool_call['function']['name']
+          tool_args = JSON.parse(tool_call['function']['arguments'])
+          tool_id = tool_call['id']
+          
+          # Execute tool if tool_manager is available
+          if @tool_manager && @tool_manager.has_tool?(tool_name)
+            result = @tool_manager.execute_tool(tool_name, tool_args)
+            tool_results << {
+              tool_call_id: tool_id,
+              role: 'tool',
+              name: tool_name,
+              content: result[:success] ? result[:result].to_s : "Error: #{result[:error]}"
+            }
+          else
+            tool_results << {
+              tool_call_id: tool_id,
+              role: 'tool',
+              name: tool_name,
+              content: "Tool '#{tool_name}' not available"
+            }
+          end
+        end
+        
+        # If we have tool results, make another API call with them
+        if tool_results.any?
+          # Add assistant's message and tool results to conversation
+          new_messages = messages + [assistant_message] + tool_results
+          
+          # Make follow-up request
+          chat(model, new_messages, options)
+        else
+          # Return content if available
+          assistant_message['content'] || ''
+        end
       end
     end
   end

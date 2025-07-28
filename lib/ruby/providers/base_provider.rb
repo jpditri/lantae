@@ -7,6 +7,7 @@ module Lantae
       def initialize(name, default_model = nil)
         @name = name
         @default_model = default_model
+        @tool_manager = nil
       end
 
       # Abstract methods that must be implemented by subclasses
@@ -23,8 +24,12 @@ module Lantae
         false
       end
 
+      def set_tool_manager(tool_manager)
+        @tool_manager = tool_manager
+      end
+
       def supports_tools?
-        false
+        !@tool_manager.nil?
       end
 
       def max_tokens

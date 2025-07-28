@@ -13,17 +13,8 @@ module Lantae
     end
     
     def setup_key_bindings
-      # Ctrl+M for multiline mode
-      Readline.bind_key("\C-m") { toggle_multiline_mode }
-      
-      # Ctrl+E to open in editor
-      Readline.bind_key("\C-e") { open_in_editor }
-      
-      # Ctrl+R for history search
-      Readline.bind_key("\C-r") { history_search }
-      
-      # Ctrl+K to clear screen
-      Readline.bind_key("\C-k") { clear_screen }
+      # Key bindings are not supported with standard Readline
+      # TODO: Implement alternative key binding mechanism
     end
     
     def read_input(prompt = '> ')

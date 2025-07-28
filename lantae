@@ -1,4 +1,11 @@
-#!/usr/bin/env ruby
+#!/usr/bin/env bash
 # Lantae CLI wrapper script
-$0 = File.join(File.dirname(__FILE__), 'bin', 'lantae')
-load File.join(File.dirname(__FILE__), 'bin', 'lantae')
+
+# Get the directory where this script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Change to the Lantae directory
+cd "$SCRIPT_DIR" || exit 1
+
+# Run lantae with bundle exec to ensure all gems are available
+exec bundle exec ruby "$SCRIPT_DIR/bin/lantae" "$@"

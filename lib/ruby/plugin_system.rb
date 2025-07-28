@@ -185,7 +185,7 @@ module Lantae
             return nil if diff.empty?
             
             # Use AI to generate commit message
-            prompt = "Generate a concise commit message for these changes:\\n#{diff[0..1000]}"
+            prompt = "Generate a concise commit message for these changes:\\n\#{diff[0..1000]}"
             
             {
               action: :prompt,
@@ -202,10 +202,10 @@ module Lantae
               Generate a pull request description for these changes:
               
               Commits:
-              #{commits}
+              \#{commits}
               
               Stats:
-              #{diff_stat}
+              \#{diff_stat}
               
               Include: Summary, changes made, testing done, and checklist.
             PROMPT
@@ -256,10 +256,10 @@ module Lantae
             language = detect_language(file_path)
             
             prompt = <<~PROMPT
-              Generate comprehensive documentation for this #{language} code:
+              Generate comprehensive documentation for this \#{language} code:
               
-              ```#{language}
-              #{code}
+              ```\#{language}
+              \#{code}
               ```
               
               Include:
@@ -291,7 +291,7 @@ module Lantae
           def save_documentation(source_file, documentation)
             doc_file = source_file.sub(/\\.[^.]+$/, '.md')
             File.write(doc_file, documentation)
-            puts "\\n📝 Documentation saved to: #{doc_file}"
+            puts "\\n📝 Documentation saved to: \#{doc_file}"
           end
         end
       RUBY
@@ -338,10 +338,10 @@ module Lantae
             framework = detect_test_framework(language)
             
             prompt = <<~PROMPT
-              Generate comprehensive tests for this #{language} code using #{framework}:
+              Generate comprehensive tests for this \#{language} code using \#{framework}:
               
-              ```#{language}
-              #{code}
+              ```\#{language}
+              \#{code}
               ```
               
               Include:
@@ -375,7 +375,7 @@ module Lantae
           def save_tests(source_file, tests, language)
             test_file = generate_test_filename(source_file, language)
             File.write(test_file, tests)
-            puts "\\n✅ Tests saved to: #{test_file}"
+            puts "\\n✅ Tests saved to: \#{test_file}"
           end
           
           def generate_test_filename(source_file, language)
@@ -384,13 +384,13 @@ module Lantae
             
             case language
             when 'rb'
-              File.join(dir, 'spec', "#{base}_spec.rb")
+              File.join(dir, 'spec', "\#{base}_spec.rb")
             when 'py'
-              File.join(dir, "test_#{base}.py")
+              File.join(dir, "test_\#{base}.py")
             when 'js'
-              File.join(dir, "#{base}.test.js")
+              File.join(dir, "\#{base}.test.js")
             else
-              File.join(dir, "#{base}_test.#{language}")
+              File.join(dir, "\#{base}_test.\#{language}")
             end
           end
         end

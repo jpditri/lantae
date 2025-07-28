@@ -171,8 +171,6 @@ install_npm_packages() {
     # Install MCP server packages (commonly used)
     local mcp_packages=(
         "@modelcontextprotocol/server-filesystem"
-        "@modelcontextprotocol/server-git"
-        "@modelcontextprotocol/server-sqlite"
     )
     
     show_progress "Installing MCP server packages..."
