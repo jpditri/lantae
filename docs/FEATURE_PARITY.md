@@ -63,6 +63,9 @@ This document tracks feature implementation status across all language implement
 | **MCP Server Management** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **LSP Integration** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Tool Manager** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Provider Tool Support** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Function Calling** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Tool Result Handling** | ✅ | ❌ | 📋 | 📋 | 📋 |
 
 ---
 
@@ -109,6 +112,10 @@ This document tracks feature implementation status across all language implement
 | **Streaming Responses** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Help System** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Command History** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Enhanced UI Mode** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Split Screen Interface** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Command Queue Display** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Parallel Command Processing** | ✅ | ❌ | 📋 | 📋 | 📋 |
 
 ---
 
@@ -226,5 +233,5 @@ Instead of a separate PowerShell implementation, **Rust provides Windows support
 
 *This document is updated with each feature addition. Check implementation-specific READMEs for detailed status and instructions.*
 
-**Last Updated**: $(date '+%Y-%m-%d')  
-**Document Version**: 1.0
+**Last Updated**: 2025-07-28  
+**Document Version**: 1.1
