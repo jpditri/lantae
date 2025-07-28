@@ -1,0 +1,493 @@
+require 'thread'
+require 'readline'
+require 'time'
+require_relative 'ui_components'
+
+module Lantae
+  class AsyncREPL
+    def initialize(provider_manager, tool_manager, options = {})
+      @provider_manager = provider_manager
+      @tool_manager = tool_manager
+      @options = options
+      @conversation = []
+      
+      # Threading and command management
+      @command_mutex = Mutex.new
+      @output_mutex = Mutex.new
+      @commands = {}
+      @next_command_id = 1
+      @command_threads = []
+      @running = true
+      
+      # UI settings
+      @terminal_width = `tput cols`.to_i rescue 80
+      @show_banner = !options[:no_banner]
+      
+      # Extra managers
+      @extra_managers = {}
+    end
+    
+    def set_extra_managers(managers)
+      @extra_managers = managers
+    end
+    
+    def start
+      print_header if @show_banner
+      
+      # Set up autocomplete
+      setup_autocomplete
+      
+      # Main input loop
+      loop do
+        begin
+          # Show prompt with active command count
+          active_count = @commands.select { |_, cmd| cmd[:status] == :running }.size
+          prompt = active_count > 0 ? "> [#{active_count} active] " : "> "
+          
+          input = Readline.readline(prompt, true)
+          break if input.nil? || ['exit', 'quit'].include?(input.strip)
+          
+          input = input.strip
+          next if input.empty?
+          
+          # Submit command for processing
+          submit_command(input)
+          
+        rescue Interrupt
+          puts "\n\nGoodbye!"
+          break
+        rescue => e
+          puts "Error: #{e.message}"
+        end
+      end
+      
+      cleanup
+    end
+    
+    private
+    
+    def print_header
+      # First show the main banner
+      print_banner unless @options[:no_banner]
+      
+      # Then show async mode info
+      UIComponents.draw_panel(
+        "Lantae - Async Mode",
+        [
+          "Multiple commands can run concurrently",
+          "Commands: /status, /cancel <id>, /clear, /help",
+          "",
+          "Provider: #{"\e[93m"}#{@provider_manager.get_provider_info[:provider]}#{"\e[0m"} | Model: #{"\e[92m"}#{@provider_manager.get_provider_info[:model]}#{"\e[0m"}"
+        ],
+        width: UIComponents.terminal_width,
+        color: "\e[96m"
+      )
+      puts
+    end
+    
+    def print_banner
+      # Show a random banner
+      banner_type = rand(14) # 7 ships + 7 cats
+      
+      case banner_type
+      when 0..6
+        # Ship banners
+        print_ship_banner(banner_type)
+      else
+        # Cat banners
+        print_cat_banner(banner_type - 7)
+      end
+    end
+    
+    def print_ship_banner(type)
+      puts <<~BANNER
+        #{"\e[96m"}
+      ╔════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+      ║  #{"\e[95m"}██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗#{"\e[96m"}                                             ╱▔▔▔╲  ║
+      ║  #{"\e[95m"}██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝#{"\e[96m"}                                            │ ◯◯ │  ║
+      ║  #{"\e[95m"}██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗#{"\e[96m"}                                          ╔═══╧════╧═══╗║
+      ║  #{"\e[95m"}██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝#{"\e[96m"}                                          ║ CONTAINER  ║║
+      ║  #{"\e[95m"}███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗#{"\e[96m"}                                 ═══════╬═══════════╬║
+      ║  #{"\e[95m"}╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝#{"\e[96m"}                                 ≈≈≈≈≈≈≈╲▄▄▄▄▄▄▄▄▄╱║
+      ║                                                                                         ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈║
+      ║  #{"\e[93m"}🚀 Multi-Provider LLM Interface v1.0.0#{"\e[96m"}                                                ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈║
+      ║  #{"\e[92m"}⚡ Powered by Cogito Reasoning Model#{"\e[96m"}                                                  ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈║
+      ║  #{"\e[94m"}🔗 Ollama • OpenAI • Anthropic • Bedrock & More#{"\e[96m"}                                     ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈║
+      ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+        #{"\e[90m"}by thelastmerrymaker | thelastmerrymaker.com#{"\e[0m"}
+      BANNER
+    end
+    
+    def print_cat_banner(type)
+      puts <<~BANNER
+        #{"\e[96m"}
+      ╔════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+      ║  #{"\e[95m"}██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗#{"\e[96m"}                                        ╱╲___╱╲    ║
+      ║  #{"\e[95m"}██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝#{"\e[96m"}                                       (  o.o  )   ║
+      ║  #{"\e[95m"}██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗#{"\e[96m"}                                          (  >^<  )   ║
+      ║  #{"\e[95m"}██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝#{"\e[96m"}                                         ╱|      |╲  ║
+      ║  #{"\e[95m"}███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗#{"\e[96m"}                                       (_|  ~~  |_) ║
+      ║  #{"\e[95m"}╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝#{"\e[96m"}                                                    ║
+      ║                                                                                                             ║
+      ║  #{"\e[93m"}🚀 Multi-Provider LLM Interface v1.0.0#{"\e[96m"}                                                                   ║
+      ║  #{"\e[92m"}⚡ Powered by Cogito Reasoning Model#{"\e[96m"}                                                                      ║
+      ║  #{"\e[94m"}🔗 Ollama • OpenAI • Anthropic • Bedrock & More#{"\e[96m"}                                                         ║
+      ╚════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+        #{"\e[90m"}by thelastmerrymaker | thelastmerrymaker.com#{"\e[0m"}
+      BANNER
+    end
+    
+    def submit_command(input)
+      command_id = nil
+      
+      @command_mutex.synchronize do
+        command_id = @next_command_id
+        @next_command_id += 1
+        
+        # Capture current provider/model configuration
+        provider_info = @provider_manager.get_provider_info
+        
+        @commands[command_id] = {
+          id: command_id,
+          input: input,
+          status: :queued,
+          provider: provider_info[:provider],
+          model: provider_info[:model],
+          submitted_at: Time.now,
+          output: []
+        }
+      end
+      
+      # Show submission confirmation
+      puts "\n#{"\e[94m"}[#{command_id}] Submitted:#{"\e[0m"} #{input}"
+      puts "#{"\e[90m"}    Using: #{@commands[command_id][:provider]}/#{@commands[command_id][:model]}#{"\e[0m"}"
+      
+      # Start processing thread
+      thread = Thread.new(command_id) do |cmd_id|
+        process_command(cmd_id)
+      end
+      
+      @command_threads << thread
+      @command_threads.delete_if { |t| !t.alive? }
+    end
+    
+    def process_command(command_id)
+      command = nil
+      
+      @command_mutex.synchronize do
+        command = @commands[command_id]
+        command[:status] = :running
+        command[:started_at] = Time.now
+      end
+      
+      begin
+        if command[:input].start_with?('/')
+          process_slash_command(command_id)
+        else
+          process_ai_command(command_id)
+        end
+        
+        @command_mutex.synchronize do
+          command[:status] = :completed
+          command[:completed_at] = Time.now
+        end
+        
+        show_completion(command_id)
+        
+      rescue => e
+        @command_mutex.synchronize do
+          command[:status] = :failed
+          command[:error] = e.message
+          command[:completed_at] = Time.now
+        end
+        
+        @output_mutex.synchronize do
+          puts "\n#{"\e[31m"}[#{command_id}] Failed:#{"\e[0m"} #{e.message}"
+        end
+      end
+    end
+    
+    def process_slash_command(command_id)
+      command = @commands[command_id]
+      input = command[:input]
+      
+      parts = input[1..-1].split(' ')
+      cmd = parts[0]
+      args = parts[1..-1].join(' ')
+      
+      case cmd
+      when 'status'
+        show_status
+        
+      when 'cancel'
+        if args =~ /^\d+$/
+          cancel_command(args.to_i)
+        else
+          add_command_output(command_id, "Usage: /cancel <command-id>")
+        end
+        
+      when 'clear'
+        system('clear') || system('cls')
+        print_header
+        
+      when 'model'
+        if args.empty?
+          add_command_output(command_id, "Current model: #{@provider_manager.get_provider_info[:model]}")
+        else
+          # Create a temporary provider manager for this command
+          temp_manager = @provider_manager.dup
+          temp_manager.current_model = args
+          info = temp_manager.get_provider_info
+          add_command_output(command_id, "Would use model: #{args} (command already uses: #{command[:model]})")
+          
+          # Update the main provider manager for future commands
+          @provider_manager.current_model = args
+          add_command_output(command_id, "Future commands will use: #{args}")
+        end
+        
+      when 'provider'
+        if args.empty?
+          add_command_output(command_id, "Current provider: #{@provider_manager.get_provider_info[:provider]}")
+        else
+          provider, model = args.split(' ', 2)
+          @provider_manager.switch_provider(provider, model)
+          info = @provider_manager.get_provider_info
+          add_command_output(command_id, "Future commands will use: #{info[:provider]} (#{info[:model]})")
+        end
+        
+      when 'help'
+        help_text = <<~HELP
+          Async Mode Commands:
+            /status              - Show all active and recent commands
+            /cancel <id>         - Cancel a running command
+            /clear               - Clear the screen
+            /model <name>        - Switch model for future commands
+            /provider <name>     - Switch provider for future commands
+            /models              - List available models
+            /help                - Show this help
+            
+          Regular Commands:
+            - Type any question or request to send to the AI
+            - Commands run in the background, prompt remains available
+            - Each command uses the model configured when submitted
+        HELP
+        add_command_output(command_id, help_text)
+        
+      when 'models'
+        begin
+          models = @provider_manager.list_models
+          output = "Available models for #{@provider_manager.get_provider_info[:provider]}:\n"
+          models.each { |model| output += "  - #{model}\n" }
+          add_command_output(command_id, output)
+        rescue => e
+          add_command_output(command_id, "Error listing models: #{e.message}")
+        end
+        
+      else
+        # Command not handled by async REPL
+        add_command_output(command_id, "Unknown command: /#{cmd}. Use /help for available commands.")
+      end
+    end
+    
+    def process_ai_command(command_id)
+      command = @commands[command_id]
+      
+      # Create conversation context for this command
+      command_conversation = @conversation.dup
+      command_conversation << { role: 'user', content: command[:input] }
+      
+      # Show processing status
+      @output_mutex.synchronize do
+        puts "\n#{"\e[33m"}[#{command_id}] Processing...#{"\e[0m"}"
+      end
+      
+      # Use a clone of provider manager with captured settings
+      provider_clone = create_provider_clone(command[:provider], command[:model])
+      
+      begin
+        # Get response from AI
+        response = provider_clone.chat(command_conversation, @options)
+        
+        # Add to conversation history
+        @conversation << { role: 'user', content: command[:input] }
+        @conversation << { role: 'assistant', content: response }
+        
+        # Format and store output
+        formatted_response = Lantae::ResponseFormatter.format_response(response, 
+          boxed: false,
+          markdown: true
+        )
+        
+        add_command_output(command_id, formatted_response)
+      rescue => e
+        # Check if this is an API key error that needs browser auth
+        if e.message.include?('API key is required') || e.message.include?('API key found')
+          @output_mutex.synchronize do
+            puts "\n#{"\e[33m"}[#{command_id}] API key required. Please run the command again to set up your API key.#{"\e[0m"}"
+            puts "#{"\e[90m"}The browser-based authentication flow must run in the main thread.#{"\e[0m"}"
+          end
+          
+          # Mark this command as needing API key setup
+          @command_mutex.synchronize do
+            command[:needs_api_key] = true
+          end
+        end
+        
+        # Re-raise the error to be handled by the outer catch
+        raise
+      end
+    end
+    
+    def create_provider_clone(provider, model)
+      # Create a new provider manager instance with specific settings
+      clone = @provider_manager.dup
+      clone.switch_provider(provider, model)
+      clone
+    end
+    
+    def add_command_output(command_id, text)
+      @command_mutex.synchronize do
+        @commands[command_id][:output] << text
+      end
+    end
+    
+    def show_completion(command_id)
+      command = @commands[command_id]
+      duration = command[:completed_at] - command[:started_at]
+      
+      @output_mutex.synchronize do
+        puts
+        
+        # Create status lines for the panel
+        status_lines = UIComponents.draw_command_status(
+          command_id,
+          :completed,
+          command[:input],
+          provider: command[:provider],
+          model: command[:model],
+          elapsed: duration.round(1)
+        )
+        
+        # Combine status and output
+        panel_content = status_lines + [""] + command[:output].flat_map { |o| o.split("\n") }
+        
+        # Draw the panel
+        UIComponents.draw_panel(
+          "Command #{command_id} - Completed",
+          panel_content,
+          width: UIComponents.terminal_width,
+          color: "\e[32m"
+        )
+        
+        puts
+      end
+    end
+    
+    def show_status
+      @output_mutex.synchronize do
+        puts
+        
+        status_lines = []
+        
+        if @commands.empty?
+          status_lines << "No commands submitted yet"
+        else
+          # Group by status
+          running = @commands.select { |_, cmd| cmd[:status] == :running }
+          queued = @commands.select { |_, cmd| cmd[:status] == :queued }
+          recent = @commands.select { |_, cmd| [:completed, :failed].include?(cmd[:status]) }
+                            .sort_by { |_, cmd| cmd[:completed_at] || Time.now }
+                            .last(5)
+          
+          if running.any?
+            status_lines << "#{"\e[33m"}Running:#{"\e[0m"}"
+            running.each do |id, cmd|
+              elapsed = Time.now - cmd[:started_at]
+              lines = UIComponents.draw_command_status(id, :running, cmd[:input], 
+                provider: cmd[:provider], model: cmd[:model], elapsed: elapsed.round)
+              lines.each { |line| status_lines << "  #{line}" }
+              status_lines << ""
+            end
+          end
+          
+          if queued.any?
+            status_lines << "#{"\e[94m"}Queued:#{"\e[0m"}"
+            queued.each do |id, cmd|
+              lines = UIComponents.draw_command_status(id, :queued, cmd[:input],
+                provider: cmd[:provider], model: cmd[:model])
+              lines.each { |line| status_lines << "  #{line}" }
+              status_lines << ""
+            end
+          end
+          
+          if recent.any?
+            status_lines << "#{"\e[90m"}Recent:#{"\e[0m"}"
+            recent.each do |id, cmd|
+              lines = UIComponents.draw_command_status(id, cmd[:status], cmd[:input],
+                provider: cmd[:provider], model: cmd[:model])
+              lines.each { |line| status_lines << "  #{line}" }
+              status_lines << ""
+            end
+          end
+        end
+        
+        UIComponents.draw_panel(
+          "Command Status",
+          status_lines,
+          width: UIComponents.terminal_width,
+          color: "\e[96m"
+        )
+        
+        puts
+      end
+    end
+    
+    def cancel_command(command_id)
+      # TODO: Implement actual thread cancellation
+      @output_mutex.synchronize do
+        puts "\n#{"\e[33m"}[#{command_id}] Cancel requested (not yet implemented)#{"\e[0m"}"
+      end
+    end
+    
+    def setup_autocomplete
+      # Basic autocomplete for slash commands
+      commands = %w[status cancel clear model provider models help]
+      
+      comp = proc do |input|
+        if input.start_with?('/')
+          cmd = input[1..-1]
+          commands.select { |c| c.start_with?(cmd) }.map { |c| "/#{c}" }
+        else
+          []
+        end
+      end
+      
+      Readline.completion_proc = comp
+      Readline.completion_append_character = ' '
+    rescue
+      # Ignore autocomplete setup errors
+    end
+    
+    def cleanup
+      @running = false
+      
+      # Wait for active commands to complete
+      active_count = @commands.select { |_, cmd| cmd[:status] == :running }.size
+      if active_count > 0
+        puts "\nWaiting for #{active_count} active commands to complete..."
+        @command_threads.each(&:join)
+      end
+    end
+  end
+end
+
+# String truncate helper
+class String
+  def truncate(max_length)
+    if length > max_length
+      self[0, max_length - 3] + "..."
+    else
+      self
+    end
+  end
+end
