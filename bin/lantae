@@ -202,7 +202,17 @@ class OllamaProvider
       end
       
       data = JSON.parse(response.body)
-      content = data['message']['content']
+      
+      # Handle error responses from Ollama
+      if data['error']
+        raise "Ollama error: #{data['error']}"
+      end
+      
+      # Safely access the content
+      content = data.dig('message', 'content')
+      unless content
+        raise "Unexpected response format from Ollama. Response: #{data.inspect}"
+      end
       
       # Process tool calls in the response
       content = process_tool_calls(content) if @tool_manager
@@ -315,7 +325,17 @@ class OpenAIProvider
     end
 
     data = JSON.parse(response.body)
-    content = data['choices'][0]['message']['content']
+    
+    # Handle error responses
+    if data['error']
+      raise "OpenAI error: #{data['error']['message'] || data['error']}"
+    end
+    
+    # Safely access the content
+    content = data.dig('choices', 0, 'message', 'content')
+    unless content
+      raise "Unexpected response format from OpenAI. Response: #{data.inspect}"
+    end
     
     # Process tool calls in the response
     content = process_tool_calls(content) if @tool_manager
@@ -395,8 +415,25 @@ class AnthropicProvider
     api_key = @secret_manager.get_api_key('anthropic')
     raise 'Anthropic API key not found in environment or AWS Secrets Manager' unless api_key
 
-    # Add tool context to the system message
-    enhanced_messages = enhance_messages_with_tools(messages)
+    # Prepare messages and extract system content
+    system_content = nil
+    enhanced_messages = messages.dup
+    
+    # Extract system messages and tool context
+    if @tool_manager
+      tools_context = @tool_manager.get_tools_context
+      system_content = "You are an AI assistant with access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+    end
+    
+    # Extract any existing system messages
+    system_messages = enhanced_messages.select { |msg| msg[:role] == 'system' }
+    if system_messages.any?
+      existing_system = system_messages.map { |msg| msg[:content] }.join("\n\n")
+      system_content = system_content ? "#{system_content}\n\n#{existing_system}" : existing_system
+    end
+    
+    # Remove system messages from the array
+    enhanced_messages.reject! { |msg| msg[:role] == 'system' }
 
     uri = URI('https://api.anthropic.com/v1/messages')
     http = Net::HTTP.new(uri.host, uri.port)
@@ -406,12 +443,18 @@ class AnthropicProvider
     request['x-api-key'] = api_key
     request['anthropic-version'] = '2023-06-01'
     request['Content-Type'] = 'application/json'
-    request.body = {
+    
+    request_body = {
       model: model,
       max_tokens: 4096,
       temperature: (options[:temperature] || 0.1).to_f,
       messages: enhanced_messages
-    }.to_json
+    }
+    
+    # Add system parameter if we have system content
+    request_body[:system] = system_content if system_content
+    
+    request.body = request_body.to_json
 
     response = http.request(request)
     
@@ -420,7 +463,17 @@ class AnthropicProvider
     end
 
     data = JSON.parse(response.body)
-    content = data['content'][0]['text']
+    
+    # Handle error responses
+    if data['error']
+      raise "Anthropic error: #{data['error']['message'] || data['error']}"
+    end
+    
+    # Safely access the content
+    content = data.dig('content', 0, 'text')
+    unless content
+      raise "Unexpected response format from Anthropic. Response: #{data.inspect}"
+    end
     
     # Process tool calls in the response
     content = process_tool_calls(content) if @tool_manager
@@ -533,7 +586,17 @@ class GeminiProvider
     end
 
     data = JSON.parse(response.body)
-    content = data['candidates'][0]['content']['parts'][0]['text']
+    
+    # Handle error responses
+    if data['error']
+      raise "Gemini error: #{data['error']['message'] || data['error']}"
+    end
+    
+    # Safely access the content
+    content = data.dig('candidates', 0, 'content', 'parts', 0, 'text')
+    unless content
+      raise "Unexpected response format from Gemini. Response: #{data.inspect}"
+    end
     
     # Process tool calls in the response
     content = process_tool_calls(content) if @tool_manager
@@ -637,7 +700,17 @@ class MistralProvider
     end
 
     data = JSON.parse(response.body)
-    content = data['choices'][0]['message']['content']
+    
+    # Handle error responses
+    if data['error']
+      raise "Mistral error: #{data['error']['message'] || data['error']}"
+    end
+    
+    # Safely access the content
+    content = data.dig('choices', 0, 'message', 'content')
+    unless content
+      raise "Unexpected response format from Mistral. Response: #{data.inspect}"
+    end
     
     # Process tool calls in the response
     content = process_tool_calls(content) if @tool_manager
@@ -741,7 +814,17 @@ class PerplexityProvider
     end
 
     data = JSON.parse(response.body)
-    content = data['choices'][0]['message']['content']
+    
+    # Handle error responses
+    if data['error']
+      raise "Perplexity error: #{data['error']['message'] || data['error']}"
+    end
+    
+    # Safely access the content
+    content = data.dig('choices', 0, 'message', 'content')
+    unless content
+      raise "Unexpected response format from Perplexity. Response: #{data.inspect}"
+    end
     
     # Process tool calls in the response
     content = process_tool_calls(content) if @tool_manager
@@ -862,11 +945,20 @@ class BedrockProvider
     })
 
     response_body = JSON.parse(response.body.read)
+    
+    # Handle error responses
+    if response_body['error']
+      raise "Bedrock error: #{response_body['error']['message'] || response_body['error']}"
+    end
 
     content = if bedrock_model_id.include?('anthropic.claude')
-      response_body['content'][0]['text']
+      response_body.dig('content', 0, 'text')
     elsif bedrock_model_id.include?('amazon.titan')
-      response_body['results'][0]['outputText']
+      response_body.dig('results', 0, 'outputText')
+    end
+    
+    unless content
+      raise "Unexpected response format from Bedrock. Response: #{response_body.inspect}"
     end
 
     # Process tool calls in the response
