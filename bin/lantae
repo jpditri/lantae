@@ -578,6 +578,10 @@ class AnthropicProvider
     end
   end
 
+  def list_models
+    %w[claude-3-5-sonnet-20241022 claude-3-5-haiku-20241022 claude-3-opus-20240229 claude-3-sonnet-20240229 claude-3-haiku-20240307]
+  end
+
   private
 
   def enhance_messages_with_tools(messages)
@@ -636,10 +640,6 @@ class AnthropicProvider
     end
     
     processed_content
-  end
-
-  def list_models
-    %w[claude-3-5-sonnet-20241022 claude-3-5-haiku-20241022 claude-3-opus-20240229 claude-3-sonnet-20240229 claude-3-haiku-20240307]
   end
 end
 
