@@ -79,6 +79,41 @@ class SecretManager
   end
 end
 
+# Shared progress indicator class for all providers
+class ProgressIndicator
+  def initialize(message = "Processing")
+    @message = message
+    @running = false
+    @thread = nil
+  end
+  
+  def start
+    @running = true
+    @thread = Thread.new do
+      spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+      i = 0
+      while @running
+        print "\r🤖 #{spinner_chars[i % spinner_chars.length]} #{@message}..."
+        $stdout.flush
+        sleep 0.1
+        i += 1
+      end
+    end
+  end
+  
+  def update_message(new_message)
+    @message = new_message
+  end
+  
+  def stop
+    @running = false
+    @thread&.join(0.5)  # Wait max 0.5 seconds
+    @thread&.kill if @thread&.alive?
+    print "\r" + " " * 80 + "\r"  # Clear the line
+    $stdout.flush
+  end
+end
+
 class ProviderManager
   def initialize(secret_manager, tool_manager = nil)
     @secret_manager = secret_manager
@@ -273,18 +308,8 @@ class OllamaProvider
   end
 
   private
-
-  def start_spinner
-    Thread.new do
-      spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
-      i = 0
-      while true
-        print "\r🤖 #{spinner_chars[i % spinner_chars.length]} Thinking..."
-        sleep 0.1
-        i += 1
-      end
-    end
-  end
+  
+  # Removed start_spinner method as we now use shared ProgressIndicator
 end
 
 class OpenAIProvider
@@ -317,30 +342,42 @@ class OpenAIProvider
       temperature: (options[:temperature] || 0.1).to_f,
       max_tokens: 4096
     }.to_json
+    
+    # Show progress indicator
+    progress = ProgressIndicator.new("Thinking")
+    progress.start unless options[:no_spinner]
 
-    response = http.request(request)
-    
-    if response.code == '401'
-      raise 'Invalid OpenAI API key. Check your credentials.'
-    end
+    begin
+      response = http.request(request)
+      
+      # Stop progress indicator
+      progress&.stop
+      
+      if response.code == '401'
+        raise 'Invalid OpenAI API key. Check your credentials.'
+      end
 
-    data = JSON.parse(response.body)
-    
-    # Handle error responses
-    if data['error']
-      raise "OpenAI error: #{data['error']['message'] || data['error']}"
+      data = JSON.parse(response.body)
+      
+      # Handle error responses
+      if data['error']
+        raise "OpenAI error: #{data['error']['message'] || data['error']}"
+      end
+      
+      # Safely access the content
+      content = data.dig('choices', 0, 'message', 'content')
+      unless content
+        raise "Unexpected response format from OpenAI. Response: #{data.inspect}"
+      end
+      
+      # Process tool calls in the response
+      content = process_tool_calls(content) if @tool_manager
+      
+      content
+    ensure
+      # Make sure progress indicator is stopped
+      progress&.stop
     end
-    
-    # Safely access the content
-    content = data.dig('choices', 0, 'message', 'content')
-    unless content
-      raise "Unexpected response format from OpenAI. Response: #{data.inspect}"
-    end
-    
-    # Process tool calls in the response
-    content = process_tool_calls(content) if @tool_manager
-    
-    content
   end
 
   private
@@ -456,29 +493,41 @@ class AnthropicProvider
     
     request.body = request_body.to_json
 
-    response = http.request(request)
+    # Show progress indicator
+    progress = ProgressIndicator.new("Thinking")
+    progress.start unless options[:no_spinner]
     
-    if response.code == '401'
-      raise 'Invalid Anthropic API key. Check your credentials.'
-    end
+    begin
+      response = http.request(request)
+      
+      # Stop progress indicator
+      progress&.stop
+      
+      if response.code == '401'
+        raise 'Invalid Anthropic API key. Check your credentials.'
+      end
 
-    data = JSON.parse(response.body)
-    
-    # Handle error responses
-    if data['error']
-      raise "Anthropic error: #{data['error']['message'] || data['error']}"
+      data = JSON.parse(response.body)
+      
+      # Handle error responses
+      if data['error']
+        raise "Anthropic error: #{data['error']['message'] || data['error']}"
+      end
+      
+      # Safely access the content
+      content = data.dig('content', 0, 'text')
+      unless content
+        raise "Unexpected response format from Anthropic. Response: #{data.inspect}"
+      end
+      
+      # Process tool calls in the response
+      content = process_tool_calls(content) if @tool_manager
+      
+      content
+    ensure
+      # Make sure progress indicator is stopped
+      progress&.stop
     end
-    
-    # Safely access the content
-    content = data.dig('content', 0, 'text')
-    unless content
-      raise "Unexpected response format from Anthropic. Response: #{data.inspect}"
-    end
-    
-    # Process tool calls in the response
-    content = process_tool_calls(content) if @tool_manager
-    
-    content
   end
 
   private
@@ -579,29 +628,41 @@ class GeminiProvider
       }
     }.to_json
 
-    response = http.request(request)
+    # Show progress indicator
+    progress = ProgressIndicator.new("Thinking")
+    progress.start unless options[:no_spinner]
     
-    if response.body.include?('API_KEY_INVALID')
-      raise 'Invalid Gemini API key. Check your credentials.'
-    end
+    begin
+      response = http.request(request)
+      
+      # Stop progress indicator
+      progress&.stop
+      
+      if response.body.include?('API_KEY_INVALID')
+        raise 'Invalid Gemini API key. Check your credentials.'
+      end
 
-    data = JSON.parse(response.body)
-    
-    # Handle error responses
-    if data['error']
-      raise "Gemini error: #{data['error']['message'] || data['error']}"
+      data = JSON.parse(response.body)
+      
+      # Handle error responses
+      if data['error']
+        raise "Gemini error: #{data['error']['message'] || data['error']}"
+      end
+      
+      # Safely access the content
+      content = data.dig('candidates', 0, 'content', 'parts', 0, 'text')
+      unless content
+        raise "Unexpected response format from Gemini. Response: #{data.inspect}"
+      end
+      
+      # Process tool calls in the response
+      content = process_tool_calls(content) if @tool_manager
+      
+      content
+    ensure
+      # Make sure progress indicator is stopped
+      progress&.stop
     end
-    
-    # Safely access the content
-    content = data.dig('candidates', 0, 'content', 'parts', 0, 'text')
-    unless content
-      raise "Unexpected response format from Gemini. Response: #{data.inspect}"
-    end
-    
-    # Process tool calls in the response
-    content = process_tool_calls(content) if @tool_manager
-    
-    content
   end
 
   private
@@ -693,29 +754,41 @@ class MistralProvider
       max_tokens: 4096
     }.to_json
 
-    response = http.request(request)
+    # Show progress indicator
+    progress = ProgressIndicator.new("Thinking")
+    progress.start unless options[:no_spinner]
     
-    if response.code == '401'
-      raise 'Invalid Mistral API key. Check your credentials.'
-    end
+    begin
+      response = http.request(request)
+      
+      # Stop progress indicator
+      progress&.stop
+      
+      if response.code == '401'
+        raise 'Invalid Mistral API key. Check your credentials.'
+      end
 
-    data = JSON.parse(response.body)
-    
-    # Handle error responses
-    if data['error']
-      raise "Mistral error: #{data['error']['message'] || data['error']}"
+      data = JSON.parse(response.body)
+      
+      # Handle error responses
+      if data['error']
+        raise "Mistral error: #{data['error']['message'] || data['error']}"
+      end
+      
+      # Safely access the content
+      content = data.dig('choices', 0, 'message', 'content')
+      unless content
+        raise "Unexpected response format from Mistral. Response: #{data.inspect}"
+      end
+      
+      # Process tool calls in the response
+      content = process_tool_calls(content) if @tool_manager
+      
+      content
+    ensure
+      # Make sure progress indicator is stopped
+      progress&.stop
     end
-    
-    # Safely access the content
-    content = data.dig('choices', 0, 'message', 'content')
-    unless content
-      raise "Unexpected response format from Mistral. Response: #{data.inspect}"
-    end
-    
-    # Process tool calls in the response
-    content = process_tool_calls(content) if @tool_manager
-    
-    content
   end
 
   private
@@ -807,29 +880,41 @@ class PerplexityProvider
       max_tokens: 4096
     }.to_json
 
-    response = http.request(request)
+    # Show progress indicator
+    progress = ProgressIndicator.new("Thinking")
+    progress.start unless options[:no_spinner]
     
-    if response.code == '401'
-      raise 'Invalid Perplexity API key. Check your credentials.'
-    end
+    begin
+      response = http.request(request)
+      
+      # Stop progress indicator
+      progress&.stop
+      
+      if response.code == '401'
+        raise 'Invalid Perplexity API key. Check your credentials.'
+      end
 
-    data = JSON.parse(response.body)
-    
-    # Handle error responses
-    if data['error']
-      raise "Perplexity error: #{data['error']['message'] || data['error']}"
+      data = JSON.parse(response.body)
+      
+      # Handle error responses
+      if data['error']
+        raise "Perplexity error: #{data['error']['message'] || data['error']}"
+      end
+      
+      # Safely access the content
+      content = data.dig('choices', 0, 'message', 'content')
+      unless content
+        raise "Unexpected response format from Perplexity. Response: #{data.inspect}"
+      end
+      
+      # Process tool calls in the response
+      content = process_tool_calls(content) if @tool_manager
+      
+      content
+    ensure
+      # Make sure progress indicator is stopped
+      progress&.stop
     end
-    
-    # Safely access the content
-    content = data.dig('choices', 0, 'message', 'content')
-    unless content
-      raise "Unexpected response format from Perplexity. Response: #{data.inspect}"
-    end
-    
-    # Process tool calls in the response
-    content = process_tool_calls(content) if @tool_manager
-    
-    content
   end
 
   private
@@ -939,32 +1024,44 @@ class BedrockProvider
       raise "Unsupported model format: #{bedrock_model_id}"
     end
 
-    response = @client.invoke_model({
-      model_id: bedrock_model_id,
-      body: body
-    })
-
-    response_body = JSON.parse(response.body.read)
+    # Show progress indicator
+    progress = ProgressIndicator.new("Thinking")
+    progress.start unless options[:no_spinner]
     
-    # Handle error responses
-    if response_body['error']
-      raise "Bedrock error: #{response_body['error']['message'] || response_body['error']}"
-    end
+    begin
+      response = @client.invoke_model({
+        model_id: bedrock_model_id,
+        body: body
+      })
 
-    content = if bedrock_model_id.include?('anthropic.claude')
-      response_body.dig('content', 0, 'text')
-    elsif bedrock_model_id.include?('amazon.titan')
-      response_body.dig('results', 0, 'outputText')
-    end
-    
-    unless content
-      raise "Unexpected response format from Bedrock. Response: #{response_body.inspect}"
-    end
+      # Stop progress indicator
+      progress&.stop
+      
+      response_body = JSON.parse(response.body.read)
+      
+      # Handle error responses
+      if response_body['error']
+        raise "Bedrock error: #{response_body['error']['message'] || response_body['error']}"
+      end
 
-    # Process tool calls in the response
-    content = process_tool_calls(content) if @tool_manager
-    
-    content
+      content = if bedrock_model_id.include?('anthropic.claude')
+        response_body.dig('content', 0, 'text')
+      elsif bedrock_model_id.include?('amazon.titan')
+        response_body.dig('results', 0, 'outputText')
+      end
+      
+      unless content
+        raise "Unexpected response format from Bedrock. Response: #{response_body.inspect}"
+      end
+
+      # Process tool calls in the response
+      content = process_tool_calls(content) if @tool_manager
+      
+      content
+    ensure
+      # Make sure progress indicator is stopped
+      progress&.stop
+    end
   rescue Aws::Errors::MissingCredentialsError
     raise 'AWS credentials not found. Configure AWS CLI or environment variables.'
   end
@@ -1033,11 +1130,12 @@ class BedrockProvider
 end
 
 class ToolManager
-  def initialize(mcp_manager = nil, lsp_client = nil)
+  def initialize(mcp_manager = nil, lsp_client = nil, auto_approve_reads = true)
     @mcp_manager = mcp_manager
     @lsp_client = lsp_client
     @tools_used = []
     @files_accessed = []
+    @auto_approve_reads = auto_approve_reads
   end
   
   attr_reader :tools_used, :files_accessed
@@ -1052,45 +1150,84 @@ class ToolManager
       @files_accessed << file_path if file_path
     end
     
-    # Auto-start LSP if beneficial and not running
-    auto_start_lsp_if_beneficial
+    # Check if approval is needed based on tool type
+    if requires_approval?(tool_name) && !ENV['LANTAE_AUTO_APPROVE_ALL']
+      unless get_user_approval(tool_name, args)
+        return "Tool execution cancelled by user"
+      end
+    end
     
-    # Check if this is an MCP tool (format: server__tool)
+    # Show execution status
+    puts "\n🔧 Executing tool: #{tool_name}"
+    $stdout.flush
+    
+    # Create progress indicator for long-running tools
+    progress = nil
+    if %w[bash ruby python git bundle find].include?(tool_name)
+      progress = ProgressIndicator.new("Running #{tool_name}")
+      progress.start
+    end
+    
+    begin
+      # Auto-start LSP if beneficial and not running
+      auto_start_lsp_if_beneficial
+      
+      # Check if this is an MCP tool (format: server__tool)
     if tool_name.include?('__') && @mcp_manager
       return execute_mcp_tool(tool_name, args)
     end
     
-    case tool_name
-    when 'bash'
-      execute_bash(args)
-    when 'ruby'
-      execute_ruby(args)
-    when 'python'
-      execute_python(args)
-    when 'ls'
-      list_files(args.empty? ? '.' : args)
-    when 'cat'
-      read_file(args)
-    when 'pwd'
-      Dir.pwd
-    when 'git'
-      execute_bash("git #{args}")
-    when 'bundle'
-      execute_bash("bundle #{args}")
-    when 'write_file'
-      write_file(args)
-    when 'edit_file'
-      edit_file(args)
-    when 'create_file'
-      create_file(args)
-    when 'delete_file'
-      delete_file(args)
-    when 'mkdir'
-      make_directory(args)
-    when 'find'
-      find_files(args)
-    else
-      raise "Tool '#{tool_name}' not found. Available tools: #{list_available_tools.join(', ')}"
+      result = case tool_name
+      when 'bash'
+        execute_bash(args)
+      when 'ruby'
+        execute_ruby(args)
+      when 'python'
+        execute_python(args)
+      when 'ls'
+        list_files(args.empty? ? '.' : args)
+      when 'cat'
+        read_file(args)
+      when 'pwd'
+        Dir.pwd
+      when 'git'
+        execute_bash("git #{args}")
+      when 'bundle'
+        execute_bash("bundle #{args}")
+      when 'write_file'
+        write_file(args)
+      when 'edit_file'
+        edit_file(args)
+      when 'create_file'
+        create_file(args)
+      when 'delete_file'
+        delete_file(args)
+      when 'mkdir'
+        make_directory(args)
+      when 'find'
+        find_files(args)
+      else
+        raise "Tool '#{tool_name}' not found. Available tools: #{list_available_tools.join(', ')}"
+      end
+      
+      # Stop progress indicator if running
+      progress&.stop
+      
+      # Display success indicator
+      puts "✅ Tool completed: #{tool_name}"
+      $stdout.flush
+      
+      result
+    rescue => e
+      # Stop progress indicator on error
+      progress&.stop
+      
+      # Display error indicator
+      puts "❌ Tool failed: #{tool_name}"
+      puts "   Error: #{e.message}"
+      $stdout.flush
+      
+      raise
     end
   end
 
@@ -1133,6 +1270,50 @@ class ToolManager
   end
 
   private
+
+  def requires_approval?(tool_name)
+    # Only require approval for tools that modify the system
+    write_tools = %w[write_file edit_file create_file delete_file mkdir bash ruby python]
+    
+    # Check environment variable for auto-approval of reads
+    if ENV['LANTAE_AUTO_APPROVE_READS'] == 'true'
+      return write_tools.include?(tool_name)
+    end
+    
+    # By default, don't require approval for read-only operations
+    return false unless @auto_approve_reads
+    
+    write_tools.include?(tool_name)
+  end
+  
+  def get_user_approval(tool_name, args)
+    # Skip approval if running in non-interactive mode
+    return true unless $stdin.tty?
+    
+    # Clear any existing output and save cursor position
+    print "\r\033[K"
+    
+    puts "\n⚠️  Tool execution request:"
+    puts "   Tool: #{tool_name}"
+    puts "   Args: #{args}"
+    print "   Approve? (y/N): "
+    $stdout.flush
+    
+    # Disable echo temporarily to avoid LSP debug interference
+    begin
+      system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
+      response = $stdin.gets
+      system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+      puts # New line after input
+      
+      return false unless response
+      response.chomp.downcase == 'y' || response.chomp.downcase == 'yes'
+    rescue Interrupt
+      system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+      puts "\n❌ Cancelled"
+      false
+    end
+  end
 
   def auto_start_lsp_if_beneficial
     # Only auto-start if LSP client is not already available
