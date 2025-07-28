@@ -47,10 +47,6 @@ task :repl do
   sh 'ruby lib/ruby/enhanced_repl.rb'
 end
 
-desc "Start Lisp REPL"
-task :lisp do
-  sh 'sbcl --load lisp/start-repl.lisp'
-end
 
 desc "Update documentation"
 task :docs do
