@@ -18,9 +18,14 @@
   (:export #:main
            #:start-repl
            #:send-single-prompt
+           #:initialize-system
+           #:get-config
+           #:set-config
+           #:process-chat-message
            #:*version*
            #:*default-config*
-           #:*conversation-history*))
+           #:*conversation-history*
+           #:*current-config*))
 
 (in-package :lantae)
 
@@ -310,8 +315,8 @@
                           :temperature temperature))))
     
     (if (and result
-             (funcall (intern "HTTP-RESULT-SUCCESS-P" :lantae-http) result))
-        (let* ((response-data (funcall (intern "HTTP-RESULT-DATA" :lantae-http) result))
+             (funcall (intern "RESULT-SUCCESS-P" :lantae-providers) result))
+        (let* ((response-data (funcall (intern "RESULT-VALUE" :lantae-providers) result))
                (content (getf response-data :content)))
           ;; Add assistant response to history
           (push `(:role "assistant" :content ,content) *conversation-history*)
@@ -322,7 +327,7 @@
             (funcall (intern "PRINT-ERROR" :lantae-colors) 
                      (format nil "Failed to get response: ~A" 
                             (if result
-                                (funcall (intern "HTTP-RESULT-ERROR" :lantae-http) result)
+                                (funcall (intern "RESULT-ERROR" :lantae-providers) result)
                                 "Provider not available"))))
           (unless (find-package :lantae-colors)
             (format t "Error: Failed to get response~%"))))))

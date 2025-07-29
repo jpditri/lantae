@@ -7,7 +7,22 @@
 ;;;; - Error handling and connection validation
 
 (defpackage :lantae-providers-ollama
-  (:use :cl :lantae-providers :lantae-http)
+  (:use :cl)
+  (:import-from :lantae-providers
+                #:success
+                #:failure
+                #:result-success-p
+                #:result-value
+                #:create-provider)
+  (:import-from :lantae-http
+                #:http-get
+                #:http-post
+                #:http-delete
+                #:parse-json-response
+                #:http-result
+                #:http-result-success-p
+                #:http-result-data
+                #:encode-json)
   (:export #:make-ollama-provider
            #:ollama-chat
            #:ollama-stream
@@ -37,32 +52,29 @@
 (defun check-ollama-connection (base-url)
   "Check if Ollama server is running and accessible"
   (handler-case
-      (multiple-value-bind (body status-code)
-          (http-get (format nil "~A/api/tags" base-url) :timeout 5)
-        (= status-code 200))
+      (let ((result (http-get (format nil "~A/api/tags" base-url) :timeout 5)))
+        (http-result-success-p result))
     (error () nil)))
 
 (defun ollama-chat-internal (base-url model messages temperature)
   "Internal implementation of Ollama chat API call"
   (let* ((url (format nil "~A~A" base-url *ollama-chat-endpoint*))
          (headers '(("Content-Type" . "application/json")))
-         (body (json-encode
-                `(:model ,model
-                  :messages ,(mapcar #'message-to-ollama-format messages)
-                  :stream nil
-                  :options (:temperature ,temperature)))))
+         (body `((:model . ,model)
+                (:messages . ,(mapcar #'message-to-ollama-format messages))
+                (:stream . nil)
+                (:options . ((:temperature . ,temperature))))))
     
     (handler-case
-        (multiple-value-bind (response-body status-code)
-            (with-http-retries (3 :delay 2)
-              (http-post url body :headers headers :timeout 300))
-          (if (= status-code 200)
-              (let* ((data (parse-json-response response-body))
-                     (message (getf data :message))
-                     (content (getf message :content)))
-                (success content))
-              (failure (format nil "Ollama API error: HTTP ~A - ~A" 
-                             status-code response-body))))
+        (let ((result (http-post url body :headers headers :timeout 300)))
+          (if (http-result-success-p result)
+              (let* ((data (parse-json-response (http-result-data result)))
+                     (message (cdr (assoc :message data)))
+                     (content (when message (cdr (assoc :content message)))))
+                (if content
+                    (success content)
+                    (failure "No content in response")))
+              (failure "Ollama API request failed")))
       (error (e)
         (if (search "Cannot connect" (format nil "~A" e))
             (failure "Cannot connect to Ollama server. Make sure Ollama is running.")
@@ -70,18 +82,17 @@
 
 (defun message-to-ollama-format (message)
   "Convert message plist to Ollama format"
-  `(:role ,(getf message :role)
-    :content ,(getf message :content)))
+  `((:role . ,(getf message :role))
+    (:content . ,(getf message :content))))
 
 (defun ollama-stream-internal (base-url model messages temperature callback)
   "Stream chat response from Ollama"
   (let* ((url (format nil "~A~A" base-url *ollama-chat-endpoint*))
          (headers '(("Content-Type" . "application/json")))
-         (body (json-encode
-                `(:model ,model
-                  :messages ,(mapcar #'message-to-ollama-format messages)
-                  :stream t
-                  :options (:temperature ,temperature)))))
+         (body `((:model . ,model)
+                (:messages . ,(mapcar #'message-to-ollama-format messages))
+                (:stream . t)
+                (:options . ((:temperature . ,temperature))))))
     
     ;; Streaming implementation would require a more sophisticated HTTP client
     ;; For now, fall back to non-streaming
@@ -92,13 +103,12 @@
   "List available Ollama models"
   (let ((url (format nil "~A~A" base-url *ollama-models-endpoint*)))
     (handler-case
-        (multiple-value-bind (response-body status-code)
-            (http-get url :timeout 30)
-          (if (= status-code 200)
-              (let* ((data (parse-json-response response-body))
-                     (models (getf data :models)))
-                (success (mapcar (lambda (m) (getf m :name)) models)))
-              (failure (format nil "Failed to list models: HTTP ~A" status-code))))
+        (let ((result (http-get url :timeout 30)))
+          (if (http-result-success-p result)
+              (let* ((data (parse-json-response (http-result-data result)))
+                     (models (cdr (assoc :models data))))
+                (success (mapcar (lambda (m) (cdr (assoc :name m))) models)))
+              (failure "Failed to list models")))
       (error (e)
         (failure (format nil "Cannot connect to Ollama: ~A" e))))))
 
@@ -106,17 +116,16 @@
   "Pull a model from Ollama registry"
   (let* ((url (format nil "~A~A" base-url *ollama-pull-endpoint*))
          (headers '(("Content-Type" . "application/json")))
-         (body (json-encode `(:name ,model-name))))
+         (body `((:name . ,model-name))))
     
     (format t "~&Pulling model ~A...~%" model-name)
     (handler-case
-        (multiple-value-bind (response-body status-code)
-            (http-post url body :headers headers :timeout 600)
-          (if (= status-code 200)
+        (let ((result (http-post url body :headers headers :timeout 600)))
+          (if (http-result-success-p result)
               (progn
                 (format t "Model ~A pulled successfully~%" model-name)
                 (success t))
-              (failure (format nil "Failed to pull model: HTTP ~A" status-code))))
+              (failure "Failed to pull model")))
       (error (e)
         (failure (format nil "Error pulling model: ~A" e))))))
 
@@ -124,16 +133,15 @@
   "Delete a model from Ollama"
   (let* ((url (format nil "~A~A" base-url *ollama-delete-endpoint*))
          (headers '(("Content-Type" . "application/json")))
-         (body (json-encode `(:name ,model-name))))
+         (body `((:name . ,model-name))))
     
     (handler-case
-        (multiple-value-bind (response-body status-code)
-            (http-delete url :body body :headers headers :timeout 30)
-          (if (= status-code 200)
+        (let ((result (http-post url body :headers headers :timeout 30))) ; Using POST with DELETE endpoint
+          (if (http-result-success-p result)
               (progn
                 (format t "Model ~A deleted~%" model-name)
                 (success t))
-              (failure (format nil "Failed to delete model: HTTP ~A" status-code))))
+              (failure "Failed to delete model")))
       (error (e)
         (failure (format nil "Error deleting model: ~A" e))))))
 

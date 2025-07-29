@@ -14,7 +14,7 @@
            #:print-colored
            #:red #:green #:yellow #:blue #:purple #:cyan #:white
            #:bold #:dim #:italic #:underline
-           #:success #:error #:warning #:info #:prompt
+           #:success #:error-text #:warning-text #:info #:prompt
            #:progress-bar
            #:spinner
            #:clear-line
@@ -148,10 +148,10 @@
 (defun success (text) 
   (colorize text :green :bold))
 
-(defun error (text) 
+(defun error-text (text) 
   (colorize text :red :bold))
 
-(defun warning (text) 
+(defun warning-text (text) 
   (colorize text :yellow :bold))
 
 (defun info (text) 

@@ -51,7 +51,7 @@
 ;;; Command execution
 (defun parse-command-line (input)
   "Parse command line into command and arguments"
-  (let* ((parts (lantae-utils:split-string input))
+  (let* ((parts (lantae-utils:split-string input #\Space))
          (command (first parts))
          (args (rest parts)))
     (values command args)))

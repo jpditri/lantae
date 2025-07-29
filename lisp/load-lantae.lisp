@@ -34,11 +34,11 @@
     "src/providers/providers.lisp"
     "src/providers/ollama-provider.lisp"
     
-    ;; CLI components
-    "src/cli/commands.lisp"
+    ;; Main entry point (before commands so package exists)
+    "lantae.lisp"
     
-    ;; Main entry point
-    "lantae.lisp"))
+    ;; CLI components (after main package)
+    "src/cli/commands.lisp"))
 
 ;;; Load modules
 (defun load-lantae-modules ()

@@ -72,6 +72,10 @@
     (format nil "~4,'0D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D"
             year month date hour min sec)))
 
+(defun current-time-string ()
+  "Get current time as formatted string"
+  (format-time-string))
+
 ;;; System utilities
 (defun quit (&optional (code 0))
   "Exit the program portably"
@@ -93,4 +97,4 @@
 
 ;;; Export all symbols
 (export '(split-string join-strings parse-number parse-value 
-          format-time-string quit merge-plists trim-string))
+          format-time-string current-time-string quit merge-plists trim-string))

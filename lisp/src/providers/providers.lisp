@@ -19,7 +19,19 @@
            #:create-provider
            #:with-provider
            #:initialize-providers
-           #:list-provider-models))
+           #:list-provider-models
+           #:result
+           #:result-success-p
+           #:result-value
+           #:result-error
+           #:success
+           #:failure
+           #:provider
+           #:provider-name
+           #:provider-chat-fn
+           #:provider-stream-fn
+           #:provider-models-fn
+           #:provider-config))
 
 (in-package :lantae-providers)
 
@@ -166,7 +178,7 @@
           (sleep delay)
           (setf delay (* delay 2)))))))
 
-;;; Provider implementations
+;;; Provider implementations (fallback if specific implementations not loaded)
 (defun make-ollama-provider (&key (base-url "http://localhost:11434"))
   "Create Ollama provider"
   (create-provider
@@ -205,24 +217,34 @@
 ;;; Provider initialization
 (defun initialize-providers ()
   "Initialize all available providers"
-  ;; Register Ollama provider (always available)
-  (register-provider (make-ollama-provider))
-  
-  ;; Register cloud providers if API keys are available
-  (let ((openai-key (or #+sbcl (sb-ext:posix-getenv "OPENAI_API_KEY")
-                        #-sbcl nil
-                        (get-secret-key "openai")))
-        (anthropic-key (or #+sbcl (sb-ext:posix-getenv "ANTHROPIC_API_KEY")
-                          #-sbcl nil
-                          (get-secret-key "anthropic"))))
-    
-    (when openai-key
-      (register-provider (make-openai-provider :api-key openai-key)))
-    
-    (when anthropic-key
-      (register-provider (make-anthropic-provider :api-key anthropic-key)))
-    
-    (format t "Initialized ~A providers~%" (hash-table-count *provider-registry*))))
+  ;; Load provider implementations if available
+  (handler-case
+      (progn
+        ;; Register Ollama provider (always available)
+        (when (find-package :lantae-providers-ollama)
+          (register-provider (funcall (intern "MAKE-OLLAMA-PROVIDER" :lantae-providers-ollama))))
+        
+        ;; Register cloud providers if API keys are available
+        (let ((openai-key (or #+sbcl (sb-ext:posix-getenv "OPENAI_API_KEY")
+                              #-sbcl nil
+                              (get-secret-key "openai")))
+              (anthropic-key (or #+sbcl (sb-ext:posix-getenv "ANTHROPIC_API_KEY")
+                                #-sbcl nil
+                                (get-secret-key "anthropic"))))
+          
+          (when (and openai-key (find-package :lantae-providers-openai))
+            (register-provider (funcall (intern "MAKE-OPENAI-PROVIDER" :lantae-providers-openai) 
+                                       :api-key openai-key)))
+          
+          (when (and anthropic-key (find-package :lantae-providers-anthropic))
+            (register-provider (funcall (intern "MAKE-ANTHROPIC-PROVIDER" :lantae-providers-anthropic)
+                                       :api-key anthropic-key)))
+          
+          (format t "Initialized ~A providers~%" (hash-table-count *provider-registry*))))
+    (error (e)
+      (format t "Error initializing providers: ~A~%" e)
+      ;; Still register placeholder providers
+      (register-provider (make-ollama-provider)))))
 
 (defun get-secret-key (provider)
   "Get API key from secrets manager (placeholder)"

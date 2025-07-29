@@ -7,7 +7,7 @@
 ;;;; - Error handling
 
 (defpackage :lantae-providers-ollama
-  (:use :cl :lantae-http)
+  (:use :cl :lantae-http :lantae-providers)
   (:export #:make-ollama-provider
            #:ollama-chat
            #:ollama-stream
@@ -42,10 +42,10 @@
         (let* ((response (parse-json-response (http-result-data result)))
                (message (cdr (assoc :message response))))
           (if message
-              (http-success `(:role ,(cdr (assoc :role message))
-                            :content ,(cdr (assoc :content message))))
-              (http-failure "No message in response")))
-        result)))
+              (success `(:role ,(cdr (assoc :role message))
+                        :content ,(cdr (assoc :content message))))
+              (failure "No message in response")))
+        (failure (http-result-error result)))))
 
 (defun ollama-stream (base-url model messages temperature callback)
   "Stream chat response from Ollama"
@@ -77,10 +77,10 @@
     (if (http-result-success-p result)
         (let* ((response (parse-json-response (http-result-data result)))
                (models (cdr (assoc :models response))))
-          (http-success (mapcar (lambda (model)
-                                (cdr (assoc :name model)))
-                              models)))
-        result)))
+          (success (mapcar (lambda (model)
+                            (cdr (assoc :name model)))
+                          models)))
+        (failure (http-result-error result)))))
 
 (defun ollama-pull-model (base-url model-name)
   "Pull a model from Ollama registry"
@@ -90,8 +90,8 @@
          (result (http-post url request-body :timeout 300))) ; Long timeout for downloads
     
     (if (http-result-success-p result)
-        (http-success t)
-        result)))
+        (success t)
+        (failure (http-result-error result)))))
 
 (defun ollama-model-info (base-url model-name)
   "Get information about a model"
@@ -101,24 +101,24 @@
     
     (if (http-result-success-p result)
         (let ((response (parse-json-response (http-result-data result))))
-          (http-success response))
-        result)))
+          (success response))
+        (failure (http-result-error result)))))
 
 ;;; Helper functions
 (defun format-message (message)
   "Format message for Ollama API"
   (cond
-    ;; Already formatted
-    ((and (listp message) (assoc :role message))
+    ;; Already formatted as alist
+    ((and (listp message) (listp (car message)) (assoc :role message))
      message)
-    ;; Simple cons pair (role . content)
-    ((and (consp message) (not (listp (cdr message))))
-     `((:role . ,(car message))
-       (:content . ,(cdr message))))
     ;; List format (:role "user" :content "text")
     ((and (listp message) (getf message :role))
      `((:role . ,(getf message :role))
        (:content . ,(getf message :content))))
+    ;; Simple cons pair (role . content)
+    ((and (consp message) (not (listp (cdr message))))
+     `((:role . ,(car message))
+       (:content . ,(cdr message))))
     ;; String - assume user message
     ((stringp message)
      `((:role . "user")
@@ -147,12 +147,12 @@
 (defun test-ollama-connection (&key (base-url "http://localhost:11434"))
   "Test if Ollama is running and accessible"
   (let ((result (ollama-list-models base-url)))
-    (if (http-result-success-p result)
+    (if (result-success-p result)
         (format t "✓ Ollama is running at ~A~%" base-url)
         (format t "✗ Cannot connect to Ollama at ~A: ~A~%" 
                 base-url 
-                (http-result-error result)))
-    (http-result-success-p result)))
+                (result-error result)))
+    (result-success-p result)))
 
 ;;; Ollama-specific features
 (defun format-for-code-generation (prompt language)

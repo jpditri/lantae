@@ -11,9 +11,24 @@
   (:export #:http-request
            #:http-get
            #:http-post
+           #:http-delete
            #:http-stream
            #:with-http-error-handling
-           #:parse-json-response))
+           #:parse-json-response
+           #:encode-json
+           #:decode-json
+           #:http-result
+           #:http-result-success-p
+           #:http-result-data
+           #:http-result-error
+           #:http-result-status-code
+           #:http-result-headers
+           #:http-success
+           #:http-failure
+           #:build-url
+           #:add-query-params
+           #:build-chat-request
+           #:extract-chat-response))
 
 (in-package :lantae-http)
 
@@ -126,7 +141,7 @@
                 (format t "Attempt ~A failed, retrying in ~A seconds...~%" 
                         attempt delay)
                 (sleep delay)
-                (setf delay (* delay 2))))))))
+                (setf delay (* delay 2)))))))))
 
 ;;; Convenience functions
 (defun http-get (url &key headers (timeout 30))
@@ -138,6 +153,14 @@
   (http-request url 
                 :method :post 
                 :content data
+                :headers headers
+                :timeout timeout))
+
+(defun http-delete (url &key body headers (timeout 30))
+  "Make DELETE request"
+  (http-request url
+                :method :delete
+                :content body
                 :headers headers
                 :timeout timeout))
 
