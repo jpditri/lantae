@@ -54,6 +54,26 @@ class ProviderManager
       ["#{@current_provider}-model-1", "#{@current_provider}-model-2"]
     end
   end
+
+  def calculate_context_usage(messages)
+    # Simple approximation: ~4 characters per token
+    total_chars = messages.sum { |msg| msg[:content].to_s.length }
+    (total_chars / 4.0).ceil
+  end
+
+  def context_window
+    8192
+  end
+
+  def remaining_context(messages)
+    used_tokens = calculate_context_usage(messages)
+    context_window - used_tokens
+  end
+
+  def context_percentage_used(messages)
+    used_tokens = calculate_context_usage(messages)
+    ((used_tokens.to_f / context_window) * 100).round(1)
+  end
 end
 
 # Stub for OllamaProvider used in tests

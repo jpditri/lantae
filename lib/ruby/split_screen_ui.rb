@@ -561,7 +561,24 @@ module Lantae
       case cmd
       when 'models'
         models = @provider_manager.list_models
-        @ui.add_output("Available models: #{models.join(', ')}", :info)
+        provider_info = @provider_manager.get_provider_info
+        provider_name = provider_info[:provider]
+        
+        # Get host info for Ollama providers
+        host_info = ""
+        if provider_name == 'ollama'
+          begin
+            provider = @provider_manager.get_provider('ollama')
+            if provider.respond_to?(:instance_variable_get)
+              base_url = provider.instance_variable_get(:@base_url)
+              host_info = base_url ? " (#{base_url})" : ""
+            end
+          rescue
+            # Ignore errors getting host info
+          end
+        end
+        
+        @ui.add_output("Available models for #{provider_name}#{host_info}: #{models.join(', ')}", :info)
       when 'provider'
         provider = parts[1]
         @provider_manager.switch_provider(provider) if provider
