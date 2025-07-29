@@ -14,6 +14,7 @@ reqwest = { version = "0.11", features = ["json", "stream"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+async-trait = "0.1"
 
 # CLI and REPL
 clap = { version = "4.0", features = ["derive"] }
@@ -32,7 +33,7 @@ thiserror = "1.0"
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Utilities
 uuid = { version = "1.0", features = ["v4"] }

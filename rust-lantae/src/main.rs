@@ -1,7 +1,9 @@
 use clap::{Arg, ArgAction, Command};
+use lantae::{Repl, init_logging, Settings};
 use std::process;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let matches = Command::new("lantae")
         .version("1.0.0")
         .author("Lantae Contributors")
@@ -95,6 +97,19 @@ fn main() {
         println!("Agent mode enabled");
     }
 
+    // Initialize logging
+    init_logging();
+    
+    // Load configuration
+    let _settings = match Settings::new() {
+        Ok(settings) => settings,
+        Err(e) => {
+            eprintln!("⚠️  Warning: Could not load configuration: {}", e);
+            eprintln!("   Using default settings...");
+            Settings::default()
+        }
+    };
+
     // Check for single prompt mode
     if let Some(prompt) = matches.get_one::<String>("prompt") {
         println!("\nProcessing prompt: {}", prompt);
@@ -103,11 +118,18 @@ fn main() {
         process::exit(1);
     } else {
         // Start interactive mode
-        println!("\nStarting interactive mode...");
-        // TODO: Implement REPL
-        println!("⚠️  Interactive mode not yet implemented");
-        println!("💡 This is a placeholder for the Rust implementation");
-        println!("📖 See the feature parity document for implementation status");
+        match Repl::new() {
+            Ok(mut repl) => {
+                if let Err(e) = repl.run().await {
+                    eprintln!("Error running REPL: {}", e);
+                    process::exit(1);
+                }
+            },
+            Err(e) => {
+                eprintln!("Failed to initialize REPL: {}", e);
+                process::exit(1);
+            }
+        }
     }
 }
 
