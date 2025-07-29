@@ -3,36 +3,17 @@ module Lantae
     def self.generate_ascii_graph(plan)
       output = []
       
-      # Header
-      output << "┌─" + "─" * 78 + "┐"
-      output << "│ 📋 EXECUTION PLAN: #{plan['objective'].ljust(60)} │"
-      output << "├─" + "─" * 78 + "┤"
+      # Header with plan info
+      draw_header(output, plan)
       
-      if plan['estimated_duration']
-        output << "│ ⏱️  Duration: #{plan['estimated_duration'].ljust(66)} │"
-      end
+      # Horizontal phase flow
+      draw_horizontal_phases(output, plan['phases'])
       
-      if plan['success_criteria']
-        output << "│ 🎯 Success Criteria:".ljust(79) + " │"
-        plan['success_criteria'].each do |criteria|
-          output << "│   • #{criteria.ljust(73)} │"
-        end
-      end
-      
-      output << "└─" + "─" * 78 + "┘"
-      output << ""
-      
-      # Phase breakdown
-      plan['phases'].each_with_index do |phase, phase_idx|
-        draw_phase(output, phase, phase_idx, plan['phases'].size)
-      end
-      
-      # Resource requirements
+      # Resource requirements and risks at bottom
       if plan['resource_requirements']
         draw_resources(output, plan['resource_requirements'])
       end
       
-      # Risks
       if plan['risks'] && plan['risks'].any?
         draw_risks(output, plan['risks'])
       end
@@ -42,186 +23,167 @@ module Lantae
     
     private
     
-    def self.draw_phase(output, phase, phase_idx, total_phases)
-      is_last_phase = phase_idx == total_phases - 1
+    def self.draw_header(output, plan)
+      title = plan['objective'] || 'Execution Plan'
+      title_width = [title.length + 4, 80].max
       
-      # Phase header
-      phase_num = phase_idx + 1
-      output << "┌─ Phase #{phase_num}: #{phase['name']}"
-      output << "│"
+      output << "┌─" + "─" * (title_width - 2) + "┐"
+      output << "│ 📋 #{title.ljust(title_width - 4)} │"
       
-      if phase['description']
-        wrapped_desc = wrap_text(phase['description'], 76)
-        wrapped_desc.each do |line|
-          output << "│ #{line.ljust(76)} │"
-        end
-        output << "│"
+      if plan['estimated_duration']
+        duration_line = "⏱️  Duration: #{plan['estimated_duration']}"
+        output << "│ #{duration_line.ljust(title_width - 4)} │"
       end
       
-      # Tasks
-      if phase['tasks'] && phase['tasks'].any?
-        parallel_tasks = phase['tasks'].select { |t| t['parallel'] }
-        sequential_tasks = phase['tasks'].reject { |t| t['parallel'] }
-        
-        # Draw parallel tasks first
-        if parallel_tasks.any?
-          output << "│ 🔄 Parallel Tasks:"
-          draw_parallel_tasks(output, parallel_tasks)
-        end
-        
-        # Draw sequential tasks
-        if sequential_tasks.any?
-          if parallel_tasks.any?
-            output << "│"
-            output << "│ ⬇️  Sequential Tasks:"
-          end
-          draw_sequential_tasks(output, sequential_tasks)
-        end
+      if plan['success_criteria'] && plan['success_criteria'].any?
+        output << "│ 🎯 Success: #{plan['success_criteria'].first.ljust(title_width - 15)} │"
       end
       
-      # Phase connector
-      if is_last_phase
-        output << "└─" + "─" * 78
-      else
-        output << "├─" + "─" * 78
-        output << "│"
-        output << "▼ Phase #{phase_num + 1}"
-        output << "│"
-      end
-      
+      output << "└─" + "─" * (title_width - 2) + "┘"
       output << ""
     end
     
-    def self.draw_parallel_tasks(output, tasks)
-      tasks.each_with_index do |task, idx|
-        is_last = idx == tasks.size - 1
-        
-        if idx == 0
-          output << "│     ┌─ #{task['name']}"
-        else
-          output << "│     ├─ #{task['name']}"
-        end
-        
-        if task['description'] && task['description'] != task['name']
-          desc_lines = wrap_text("   #{task['description']}", 70)
-          desc_lines.each do |line|
-            prefix = is_last && line == desc_lines.last ? "│       " : "│     │ "
-            output << "#{prefix}#{line}"
+    def self.draw_horizontal_phases(output, phases)
+      return if phases.empty?
+      
+      # Calculate phase widths
+      phase_width = 24
+      total_width = phases.size * phase_width + (phases.size - 1) * 6 # 6 for arrows
+      
+      # Draw phase headers
+      header_line = ""
+      phases.each_with_index do |phase, idx|
+        phase_name = truncate_text(phase['name'] || "Phase #{idx + 1}", phase_width - 4)
+        header_line += "┌─#{phase_name.center(phase_width - 2)}─┐"
+        header_line += "      " if idx < phases.size - 1 # spacing for arrow
+      end
+      output << header_line
+      
+      # Find max tasks in any phase for consistent height
+      max_tasks = phases.map { |p| (p['tasks'] || []).size }.max || 0
+      task_lines = [max_tasks, 5].max # minimum 5 lines for readability
+      
+      # Draw task content
+      (0...task_lines).each do |line_idx|
+        line = ""
+        phases.each_with_index do |phase, phase_idx|
+          tasks = phase['tasks'] || []
+          
+          if line_idx < tasks.size
+            task = tasks[line_idx]
+            task_name = truncate_text(task['name'] || '', phase_width - 4)
+            
+            # Color code by task type
+            if task['parallel']
+              prefix = "🔄"
+            else
+              prefix = "📋"
+            end
+            
+            task_line = "#{prefix} #{task_name}"
+            line += "│ #{task_line.ljust(phase_width - 2)} │"
+          else
+            line += "│" + " " * (phase_width - 2) + "│"
+          end
+          
+          # Add arrow between phases
+          if phase_idx < phases.size - 1
+            if line_idx == task_lines / 2 # middle line gets the arrow
+              line += "  ──→ "
+            else
+              line += "      "
+            end
           end
         end
-        
-        if task['estimated_duration']
-          duration_line = "   ⏱️  #{task['estimated_duration']}"
-          prefix = is_last ? "│       " : "│     │ "
-          output << "#{prefix}#{duration_line}"
-        end
-        
-        if is_last
-          output << "│     └─"
-        end
+        output << line
+      end
+      
+      # Bottom border
+      bottom_line = ""
+      phases.each_with_index do |phase, idx|
+        bottom_line += "└─" + "─" * (phase_width - 2) + "┘"
+        bottom_line += "      " if idx < phases.size - 1
+      end
+      output << bottom_line
+      
+      # Add duration info below each phase
+      duration_line = ""
+      phases.each_with_index do |phase, idx|
+        total_duration = calculate_phase_duration(phase)
+        duration_text = "⏱️  #{total_duration}".center(phase_width)
+        duration_line += duration_text
+        duration_line += "      " if idx < phases.size - 1
+      end
+      output << duration_line if duration_line.strip.length > 0
+      output << ""
+    end
+    
+    def self.calculate_phase_duration(phase)
+      tasks = phase['tasks'] || []
+      if tasks.any? && tasks.first['estimated_duration']
+        # Sum up task durations (simplified)
+        total_hours = tasks.map { |t| extract_hours(t['estimated_duration']) }.sum
+        "#{total_hours}h"
+      else
+        phase['estimated_duration'] || '?'
       end
     end
     
-    def self.draw_sequential_tasks(output, tasks)
-      tasks.each_with_index do |task, idx|
-        # Task box
-        output << "│ ┌─ #{task['name']}"
-        
-        if task['description'] && task['description'] != task['name']
-          desc_lines = wrap_text("#{task['description']}", 72)
-          desc_lines.each do |line|
-            output << "│ │  #{line.ljust(72)} │"
-          end
-        end
-        
-        # Task metadata
-        metadata = []
-        metadata << "⏱️  #{task['estimated_duration']}" if task['estimated_duration']
-        metadata << "🧠 #{task['agent_type']}" if task['agent_type']
-        
-        if task['dependencies'] && task['dependencies'].any?
-          dep_text = "📋 Depends on: #{task['dependencies'].join(', ')}"
-          metadata << dep_text
-        end
-        
-        metadata.each do |meta|
-          output << "│ │  #{meta.ljust(72)} │"
-        end
-        
-        output << "│ └─" + "─" * 74
-        
-        # Arrow to next task (except for last)
-        unless idx == tasks.size - 1
-          output << "│   ⬇️"
-        end
+    def self.extract_hours(duration_str)
+      # Simple extraction of hours from strings like "4 hours", "2h", etc.
+      return 0 unless duration_str
+      
+      if duration_str.match(/(\d+)\s*h/)
+        $1.to_i
+      elsif duration_str.match(/(\d+)\s*hour/)
+        $1.to_i
+      else
+        1 # default
       end
     end
+    
+    def self.truncate_text(text, max_length)
+      return text if text.length <= max_length
+      text[0..max_length-4] + "..."
+    end
+    
     
     def self.draw_resources(output, resources)
-      output << "┌─ 🛠️  RESOURCE REQUIREMENTS"
-      output << "│"
+      output << "🛠️  RESOURCES:"
       
+      resource_items = []
       if resources['tools'] && resources['tools'].any?
-        output << "│ 🔧 Tools: #{resources['tools'].join(', ')}"
+        resource_items << "🔧 #{resources['tools'][0..2].join(', ')}"
       end
       
-      if resources['models']
-        output << "│ 🧠 Models:"
-        output << "│   • Preferred: #{resources['models']['preferred']}"
-        if resources['models']['alternatives'] && resources['models']['alternatives'].any?
-          output << "│   • Alternatives: #{resources['models']['alternatives'].join(', ')}"
-        end
+      if resources['models'] && resources['models']['preferred']
+        resource_items << "🧠 #{resources['models']['preferred']}"
       end
       
       if resources['external_apis'] && resources['external_apis'].any?
-        output << "│ 🌐 External APIs: #{resources['external_apis'].join(', ')}"
+        resource_items << "🌐 #{resources['external_apis'][0..1].join(', ')}"
       end
       
-      output << "└─" + "─" * 78
+      output << resource_items.join('  •  ') if resource_items.any?
       output << ""
     end
     
     def self.draw_risks(output, risks)
-      output << "┌─ ⚠️  RISK ASSESSMENT"
-      output << "│"
+      return if risks.empty?
       
-      risks.each do |risk|
-        severity_color = case risk['impact']
+      output << "⚠️  RISKS:"
+      
+      risk_summary = risks.take(3).map do |risk|
+        color = case risk['impact']
         when 'high' then '🔴'
-        when 'medium' then '🟡'  
+        when 'medium' then '🟡'
         else '🟢'
         end
-        
-        output << "│ #{severity_color} #{risk['description']}"
-        output << "│   Probability: #{risk['probability']} | Impact: #{risk['impact']}"
-        output << "│   Mitigation: #{risk['mitigation']}"
-        output << "│"
+        "#{color} #{risk['description'][0..30]}..."
       end
       
-      output << "└─" + "─" * 78
+      output << risk_summary.join('  •  ')
       output << ""
-    end
-    
-    def self.wrap_text(text, width)
-      return [text] if text.length <= width
-      
-      words = text.split(' ')
-      lines = []
-      current_line = ""
-      
-      words.each do |word|
-        if current_line.empty?
-          current_line = word
-        elsif (current_line + " " + word).length <= width
-          current_line += " " + word
-        else
-          lines << current_line
-          current_line = word
-        end
-      end
-      
-      lines << current_line unless current_line.empty?
-      lines
     end
   end
 end
