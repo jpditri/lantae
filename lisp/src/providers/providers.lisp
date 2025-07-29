@@ -31,7 +31,11 @@
            #:provider-chat-fn
            #:provider-stream-fn
            #:provider-models-fn
-           #:provider-config))
+           #:provider-config
+           #:set-provider-tool-manager
+           #:provider-supports-tools-p
+           #:provider-call-tool
+           #:handle-tool-response))
 
 (in-package :lantae-providers)
 
@@ -49,6 +53,7 @@
   chat-fn
   stream-fn
   models-fn
+  tool-manager
   config)
 
 ;;; Result monad for error handling
@@ -132,13 +137,49 @@
         (result-value result)
         nil)))
 
+;;; Tool support functions
+(defun set-provider-tool-manager (provider-name tool-manager)
+  "Set tool manager for a provider"
+  (let ((provider (get-provider provider-name)))
+    (when provider
+      (setf (provider-tool-manager provider) tool-manager)
+      t)))
+
+(defun provider-supports-tools-p (provider-name)
+  "Check if provider supports tools"
+  (let ((provider (get-provider provider-name)))
+    (and provider 
+         (provider-tool-manager provider)
+         (not (null (provider-tool-manager provider))))))
+
+(defun provider-call-tool (provider-name tool-name &rest arguments)
+  "Call a tool through the provider's tool manager"
+  (let ((provider (get-provider provider-name)))
+    (if (and provider (provider-tool-manager provider))
+        (apply (intern "EXECUTE-TOOL" :lantae-tools)
+               (provider-tool-manager provider)
+               tool-name
+               arguments)
+        (failure (format nil "Provider ~A does not support tools" provider-name)))))
+
+(defun handle-tool-response (provider-name response model messages options)
+  "Handle tool use response from provider"
+  (let ((provider (get-provider provider-name)))
+    (when (and provider (provider-tool-manager provider))
+      ;; This will be implemented per-provider based on their tool format
+      (case (intern (string-upcase provider-name) :keyword)
+        (:anthropic (handle-anthropic-tool-response provider response model messages options))
+        (:openai (handle-openai-tool-response provider response model messages options))
+        (t (failure "Tool handling not implemented for this provider"))))))
+
 ;;; Provider creation helpers
-(defun create-provider (&key name chat-fn stream-fn models-fn config)
+(defun create-provider (&key name chat-fn stream-fn models-fn tool-manager config)
   "Create a new provider structure"
   (make-provider :name name
                  :chat-fn chat-fn
                  :stream-fn stream-fn
                  :models-fn models-fn
+                 :tool-manager tool-manager
                  :config config))
 
 (defmacro with-provider (provider-name &body body)

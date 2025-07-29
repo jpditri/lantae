@@ -31,6 +31,10 @@
     ;; Configuration
     "src/config/config.lisp"
     
+    ;; Tools system
+    "src/tools/tools.lisp"
+    "src/tools/mcp-client.lisp"
+    
     ;; Providers
     "src/providers/providers.lisp"
     "src/providers/ollama-provider.lisp"

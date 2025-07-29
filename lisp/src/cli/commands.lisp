@@ -226,6 +226,33 @@
     (t
      (format t "Usage: /streaming [on|off]~%"))))
 
+(defun cmd-tool (args)
+  "Execute a tool or list available tools"
+  (cond
+    ((null args)
+     ;; List available tools
+     (let ((tools (when (find-package :lantae-tools)
+                   (funcall (intern "TOOL-LIST" :lantae-tools)))))
+       (if tools
+           (progn
+             (format t "~%Available tools:~%")
+             (dolist (tool tools)
+               (format t "  - ~A~%" tool)))
+           (format t "No tools available~%"))))
+    (t
+     ;; Execute tool
+     (let ((tool-name (first args))
+           (tool-args (rest args)))
+       (if (find-package :lantae-tools)
+           (let ((result (apply (intern "TOOL-EXECUTE" :lantae-tools) tool-name tool-args)))
+             (if (funcall (intern "TOOL-RESULT-SUCCESS-P" :lantae-tools) result)
+                 (progn
+                   (format t "~A" (funcall (intern "FORMAT-TOOL-OUTPUT" :lantae-tools) result))
+                   (format t "~%"))
+                 (format t "Tool execution failed: ~A~%" 
+                        (funcall (intern "TOOL-RESULT-ERROR" :lantae-tools) result))))
+           (format t "Tool system not available~%"))))))
+
 (defun cmd-quit (args)
   "Exit the REPL"
   (declare (ignore args))
@@ -298,6 +325,10 @@
   (register-command "streaming" #'cmd-streaming
                    :description "Toggle streaming mode"
                    :usage "/streaming [on|off]")
+  
+  (register-command "tool" #'cmd-tool
+                   :description "Execute a tool or list available tools"
+                   :usage "/tool [name] [args...]")
   
   (register-command "quit" #'cmd-quit
                    :description "Exit the REPL"

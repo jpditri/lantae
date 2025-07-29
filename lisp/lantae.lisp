@@ -304,9 +304,20 @@
   ;; Load configuration from file if exists
   (load-configuration)
   
+  ;; Initialize tools system
+  (when (find-package :lantae-tools)
+    (funcall (intern "REGISTER-BUILT-IN-TOOLS" :lantae-tools)))
+  
   ;; Initialize providers
   (when (find-package :lantae-providers)
     (funcall (intern "INITIALIZE-PROVIDERS" :lantae-providers)))
+  
+  ;; Set up tool managers for providers if tools are available
+  (when (and (find-package :lantae-tools) (find-package :lantae-providers))
+    (let ((tool-manager (intern "*DEFAULT-TOOL-MANAGER*" :lantae-tools)))
+      (dolist (provider-name (funcall (intern "LIST-PROVIDERS" :lantae-providers)))
+        (funcall (intern "SET-PROVIDER-TOOL-MANAGER" :lantae-providers) 
+                provider-name (symbol-value tool-manager)))))
   
   ;; Register default commands
   (when (find-package :lantae-commands)
