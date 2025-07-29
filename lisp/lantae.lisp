@@ -58,10 +58,25 @@
                :audit-log-path "logs/audit.log")))
 
 ;;; Global state management using functional approach
-(defvar *current-config* (copy-list *default-config*))
+(defvar *current-config* nil)
 (defvar *current-provider* nil)
 (defvar *conversation-history* '())
 (defvar *command-registry* (make-hash-table :test 'equal))
+
+;;; Initialize config properly
+(defun deep-copy-plist (plist)
+  "Deep copy a property list"
+  (when plist
+    (cons (first plist)
+          (if (listp (second plist))
+              (cons (deep-copy-plist (second plist))
+                    (deep-copy-plist (cddr plist)))
+              (cons (second plist)
+                    (deep-copy-plist (cddr plist)))))))
+
+(defun initialize-config ()
+  "Initialize configuration from defaults"
+  (setf *current-config* (deep-copy-plist *default-config*)))
 
 ;;; Configuration access functions
 (defun get-config (key &optional default)
@@ -79,7 +94,8 @@
 
 (defun set-config (key value)
   "Set configuration value"
-  (setf (getf *current-config* (intern (string key))) value))
+  (let ((keyword-key (if (keywordp key) key (intern (string-upcase (string key)) :keyword))))
+    (setf (getf *current-config* keyword-key) value)))
 
 (defun merge-config (config-plist)
   "Merge configuration plist with current config"
@@ -281,6 +297,9 @@
 
 (defun initialize-system ()
   "Initialize the Lantae system"
+  ;; Initialize configuration first
+  (initialize-config)
+  
   ;; Load configuration from file if exists
   (load-configuration)
   

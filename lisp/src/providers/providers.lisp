@@ -224,6 +224,13 @@
         (when (find-package :lantae-providers-ollama)
           (register-provider (funcall (intern "MAKE-OLLAMA-PROVIDER" :lantae-providers-ollama))))
         
+        ;; Register OpenAI provider if package is loaded (even without API key for testing)
+        (when (find-package :lantae-providers-openai)
+          (handler-case
+              (register-provider (funcall (intern "MAKE-OPENAI-PROVIDER" :lantae-providers-openai)))
+            (error (e)
+              (format t "OpenAI provider not registered: ~A~%" e))))
+        
         ;; Register cloud providers if API keys are available
         (let ((openai-key (or #+sbcl (sb-ext:posix-getenv "OPENAI_API_KEY")
                               #-sbcl nil

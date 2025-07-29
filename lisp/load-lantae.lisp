@@ -33,6 +33,7 @@
     ;; Providers
     "src/providers/providers.lisp"
     "src/providers/ollama-provider.lisp"
+    "src/providers/openai-provider.lisp"
     
     ;; Main entry point (before commands so package exists)
     "lantae.lisp"
