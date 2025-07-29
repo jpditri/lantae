@@ -415,6 +415,41 @@ The Planning Agent is an advanced feature that breaks down complex tasks into ma
 6. **Auto-Fix**: Common issues are automatically corrected
 7. **Learning**: Success rates are tracked for continuous improvement
 
+### Planning Visualization
+
+The Planning Agent now includes horizontal ASCII visualization showing the complete task breakdown and execution flow:
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│ 📋 Build a web scraper for news articles                                        │
+│ ⏱️  Duration: 6 hours                                                        │
+│ 🎯 Success: Functional scraper                                                │
+└───────────────────────────────────────────────────────────────────────────────┘
+
+┌─        Setup         ─┐      ┌─     Development      ─┐      ┌─       Testing        ─┐      ┌─      Deployment      ─┐
+│ 📋 Create project st... │      │ 📋 Create scraper class │      │ 🔄 Unit tests           │      │ 📋 Package application  │
+│ 📋 Install dependencies │      │ 🔄 Add URL parsing      │      │ 📋 Integration tests    │      │ 🔄 Create documentation │
+│ 📋 Setup virtual env    │  ──→ │ 📋 Implement data ex... │  ──→ │ 🔄 Performance tests    │  ──→ │ 📋 Deploy to production │
+│                      │      │ 🔄 Add rate limiting    │      │                      │      │                      │
+│                      │      │                      │      │                      │      │                      │
+└───────────────────────┘      └───────────────────────┘      └───────────────────────┘      └───────────────────────┘
+         ⏱️  1h                        ⏱️  3h                        ⏱️  1h                        ⏱️  1h         
+
+🛠️  RESOURCES:
+🔧 requests, beautifulsoup4, selenium  •  🧠 qwen2.5:3b  •  🌐 news-api, scraping-bee
+
+⚠️  RISKS:
+🟡 Website structure changes frequ...  •  🔴 Rate limiting may block request...  •  🟢 Legal concerns with scraping...
+```
+
+**Legend:**
+- 📋 Sequential tasks (must complete before next)
+- 🔄 Parallel tasks (can run simultaneously)
+- ──→ Phase transitions with automatic verification
+- ⏱️ Estimated duration per phase
+- 🛠️ Required tools and resources
+- ⚠️ Risk assessment and mitigation
+
 ### Example Output
 ```
 🤖 Agent Mode: Planning and executing task...
