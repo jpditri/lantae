@@ -2,6 +2,7 @@ require 'thread'
 require 'readline'
 require 'time'
 require_relative 'ui_components'
+require_relative 'side_panel_manager'
 
 module Lantae
   class AsyncREPL
@@ -296,6 +297,7 @@ module Lantae
             /model <name>        - Switch model for future commands
             /provider <name>     - Switch provider for future commands
             /models              - List available models
+            /side                - Toggle side panel display
             /help                - Show this help
             
           Regular Commands:
@@ -314,6 +316,11 @@ module Lantae
         rescue => e
           add_command_output(command_id, "Error listing models: #{e.message}")
         end
+        
+      when 'side'
+        @options[:side_panel] = !@options[:side_panel]
+        status = @options[:side_panel] ? "enabled" : "disabled"
+        add_command_output(command_id, "Side panel #{status}")
         
       else
         # Command not handled by async REPL
@@ -349,6 +356,19 @@ module Lantae
           boxed: false,
           markdown: true
         )
+        
+        # Add side panel if enabled
+        if @options[:side_panel]
+          side_content = Lantae::SidePanelManager.generate_side_content(
+            provider: @options[:provider],
+            model: @options[:model],
+            temperature: @options[:temperature],
+            conversation: @conversation,
+            tools_available: @tool_manager&.available_tools || []
+          )
+          
+          formatted_response = Lantae::ResponseFormatter.with_side_panel(formatted_response, side_content)
+        end
         
         add_command_output(command_id, formatted_response)
       rescue => e
