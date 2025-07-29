@@ -80,23 +80,69 @@
   "Merge configuration plist with current config"
   (setf *current-config* (append config-plist *current-config*)))
 
+;;; Load color support if available
+(handler-case
+    (require :lantae-colors)
+  (error ()
+    nil))
+
 ;;; Banner and help functions
 (defun print-banner ()
   "Print colorful ASCII banner"
   (unless (get-config :no-banner)
     (format t "~%")
-    (format t "╔══════════════════════════════════════════════════════════════╗~%")
-    (format t "║  ██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗  ║~%")
-    (format t "║  ██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝  ║~%")
-    (format t "║  ██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗    ║~%")
-    (format t "║  ██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝    ║~%")
-    (format t "║  ███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗  ║~%")
-    (format t "║  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ║~%")
-    (format t "║                                                              ║~%")
-    (format t "║  🚀 Multi-Provider LLM Interface v~A (LISP Edition)  ║~%" *version*)
-    (format t "║  ⚡ Powered by Functional Programming Paradigms            ║~%")
-    (format t "║  🔗 S-expressions • Macros • Pure Functions               ║~%")
-    (format t "╚══════════════════════════════════════════════════════════════╝~%")
+    (if (find-package :lantae-colors)
+        (progn
+          (funcall (intern "PRINT-COLORED" :lantae-colors) 
+                   "╔══════════════════════════════════════════════════════════════╗~%" 
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  ██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗  ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  ██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝  ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  ██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗    ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  ██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝    ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  ███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗  ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║                                                              ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   (format nil "║  🚀 Multi-Provider LLM Interface v~A (LISP Edition)  ║~%" *version*)
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  ⚡ Powered by Functional Programming Paradigms            ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "║  🔗 S-expressions • Macros • Pure Functions               ║~%"
+                   :blue :bold)
+          (funcall (intern "PRINT-COLORED" :lantae-colors)
+                   "╚══════════════════════════════════════════════════════════════╝~%"
+                   :blue :bold))
+        ;; Fallback to non-colored output
+        (progn
+          (format t "╔══════════════════════════════════════════════════════════════╗~%")
+          (format t "║  ██╗      █████╗ ███╗   ██╗████████╗ █████╗ ███████╗  ║~%")
+          (format t "║  ██║     ██╔══██╗████╗  ██║╚══██╔══╝██╔══██╗██╔════╝  ║~%")
+          (format t "║  ██║     ███████║██╔██╗ ██║   ██║   ███████║█████╗    ║~%")
+          (format t "║  ██║     ██╔══██║██║╚██╗██║   ██║   ██╔══██║██╔══╝    ║~%")
+          (format t "║  ███████╗██║  ██║██║ ╚████║   ██║   ██║  ██║███████╗  ║~%")
+          (format t "║  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝╚══════╝  ║~%")
+          (format t "║                                                              ║~%")
+          (format t "║  🚀 Multi-Provider LLM Interface v~A (LISP Edition)  ║~%" *version*)
+          (format t "║  ⚡ Powered by Functional Programming Paradigms            ║~%")
+          (format t "║  🔗 S-expressions • Macros • Pure Functions               ║~%")
+          (format t "╚══════════════════════════════════════════════════════════════╝~%")))
     (format t "~%")))
 
 (defun print-help ()
@@ -247,9 +293,39 @@
 ;;; REPL functions
 (defun process-chat-message (message)
   "Process regular chat message"
-  (push (list :user message) *conversation-history*)
-  ;; TODO: Send to provider and get response
-  (format t "Chat response would appear here for: ~A~%" message))
+  (push `(:role "user" :content ,message) *conversation-history*)
+  
+  ;; Show thinking indicator
+  (when (find-package :lantae-colors)
+    (funcall (intern "PRINT-COLORED" :lantae-colors) "🤖 Thinking..." :cyan)
+    (format t "~%"))
+  
+  ;; Send to provider
+  (let* ((provider (get-config :provider))
+         (model (get-config :model))
+         (temperature (get-config :temperature))
+         (result (when (find-package :lantae-providers)
+                  (funcall (intern "PROVIDER-CHAT" :lantae-providers)
+                          provider model *conversation-history*
+                          :temperature temperature))))
+    
+    (if (and result
+             (funcall (intern "HTTP-RESULT-SUCCESS-P" :lantae-http) result))
+        (let* ((response-data (funcall (intern "HTTP-RESULT-DATA" :lantae-http) result))
+               (content (getf response-data :content)))
+          ;; Add assistant response to history
+          (push `(:role "assistant" :content ,content) *conversation-history*)
+          ;; Display response
+          (format t "~%~A~%" content))
+        (progn
+          (when (find-package :lantae-colors)
+            (funcall (intern "PRINT-ERROR" :lantae-colors) 
+                     (format nil "Failed to get response: ~A" 
+                            (if result
+                                (funcall (intern "HTTP-RESULT-ERROR" :lantae-http) result)
+                                "Provider not available"))))
+          (unless (find-package :lantae-colors)
+            (format t "Error: Failed to get response~%"))))))
 
 (defun process-slash-command (command)
   "Process slash command"

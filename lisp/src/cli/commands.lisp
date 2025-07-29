@@ -1,35 +1,19 @@
-;;;; commands.lisp - Command system using macros and higher-order functions
+;;;; commands.lisp - Command system implementation for Lantae LISP
 ;;;;
-;;;; Implements:
-;;;; - Macro-based command definition
+;;;; Implements slash commands with:
 ;;;; - Command registry and dispatch
+;;;; - Built-in commands (/help, /model, /provider, etc.)
 ;;;; - Tab completion support
-;;;; - Command aliases
 ;;;; - Command history
 
 (defpackage :lantae-commands
   (:use :cl)
-  (:import-from :lantae-utils
-                #:split-string
-                #:trim-string
-                #:parse-value
-                #:quit
-                #:join-strings)
-  (:import-from :lantae-config
-                #:get-config
-                #:set-config)
-  (:import-from :lantae-providers
-                #:list-providers
-                #:list-provider-models
-                #:get-provider)
   (:export #:*command-registry*
-           #:defcommand
            #:register-command
            #:execute-command
+           #:register-all-commands
            #:list-commands
-           #:complete-command
-           #:command-help
-           #:register-all-commands))
+           #:get-command-completions))
 
 (in-package :lantae-commands)
 
@@ -37,268 +21,277 @@
 (defvar *command-registry* (make-hash-table :test 'equal)
   "Registry of available commands")
 
-(defvar *command-aliases* (make-hash-table :test 'equal)
-  "Command aliases")
-
-(defvar *command-history* '()
-  "Command execution history")
-
-;;; Command structure
 (defstruct command
   name
   function
-  help
-  args-spec
-  aliases)
+  description
+  usage
+  completions-fn)
 
 ;;; Command registration
-(defun register-command (name function &key help args-spec aliases)
+(defun register-command (name function &key description usage completions-fn)
   "Register a command in the registry"
-  (let ((cmd (make-command :name name
-                          :function function
-                          :help help
-                          :args-spec args-spec
-                          :aliases aliases)))
-    (setf (gethash name *command-registry*) cmd)
-    ;; Register aliases
-    (dolist (alias aliases)
-      (setf (gethash alias *command-aliases*) name)))
-  (format t "Registered command: ~A~%" name))
+  (setf (gethash name *command-registry*)
+        (make-command :name name
+                     :function function
+                     :description description
+                     :usage usage
+                     :completions-fn completions-fn)))
 
-(defmacro defcommand (name args &body body)
-  "Define a new command"
-  (let ((docstring (when (stringp (first body))
-                     (first body)))
-        (actual-body (if (stringp (first body))
-                        (rest body)
-                        body)))
-    `(register-command ,(string-downcase (string name))
-                      (lambda ,args
-                        ,@actual-body)
-                      :help ,docstring)))
+(defun get-command (name)
+  "Get command by name"
+  (gethash name *command-registry*))
+
+(defun list-commands ()
+  "List all registered commands"
+  (loop for name being the hash-keys of *command-registry*
+        collect name into names
+        finally (return (sort names #'string<))))
 
 ;;; Command execution
-(defun split-command-line (command-line)
-  "Split command line into command and arguments"
-  (let ((trimmed (trim-string command-line)))
-    (if (string= trimmed "")
-        '()
-        (split-string trimmed #\Space))))
+(defun parse-command-line (input)
+  "Parse command line into command and arguments"
+  (let* ((parts (lantae-utils:split-string input))
+         (command (first parts))
+         (args (rest parts)))
+    (values command args)))
 
-(defun find-command (name)
-  "Find command by name or alias"
-  (or (gethash name *command-registry*)
-      (let ((real-name (gethash name *command-aliases*)))
-        (when real-name
-          (gethash real-name *command-registry*)))))
+(defun execute-command (input)
+  "Execute a slash command"
+  (multiple-value-bind (command-name args) (parse-command-line input)
+    (let ((command (get-command command-name)))
+      (if command
+          (handler-case
+              (funcall (command-function command) args)
+            (error (e)
+              (format t "Error executing command: ~A~%" e)))
+          (format t "Unknown command: /~A. Type /help for available commands.~%" 
+                  command-name)))))
 
-(defun execute-command (command-line)
-  "Execute a command line"
-  (let ((parts (split-command-line command-line)))
-    (if (null parts)
-        (format t "No command specified~%")
-        (let* ((cmd-name (first parts))
-               (args (rest parts))
-               (cmd (find-command cmd-name)))
-          (if cmd
-              (handler-case
-                  (progn
-                    (push command-line *command-history*)
-                    (apply (command-function cmd) args))
-                (error (e)
-                  (format t "Command error: ~A~%" e)))
-              (format t "Unknown command: ~A~%" cmd-name))))))
+;;; Tab completion
+(defun get-command-completions (prefix)
+  "Get command completions for prefix"
+  (loop for name being the hash-keys of *command-registry*
+        when (and (>= (length name) (length prefix))
+                  (string= prefix name :end2 (length prefix)))
+        collect name into matches
+        finally (return (sort matches #'string<))))
 
-;;; Command utilities
-(defun list-commands ()
-  "List all available commands"
-  (let ((commands '()))
-    (maphash (lambda (name cmd)
-               (push (cons name cmd) commands))
-             *command-registry*)
-    (sort commands #'string< :key #'car)))
+(defun get-argument-completions (command-name partial-arg position)
+  "Get argument completions for a command"
+  (let ((command (get-command command-name)))
+    (when (and command (command-completions-fn command))
+      (funcall (command-completions-fn command) partial-arg position))))
 
-(defun complete-command-name (partial)
-  "Complete command name"
-  (let ((matches '()))
-    (maphash (lambda (name cmd)
-               (declare (ignore cmd))
-               (when (and (>= (length name) (length partial))
-                         (string= partial name :end2 (length partial)))
-                 (push name matches)))
-             *command-registry*)
-    matches))
+;;; Built-in commands implementation
 
-(defun complete-command (partial-line)
-  "Complete command line"
-  (let ((parts (split-command-line partial-line)))
-    (cond
-      ;; Complete command name
-      ((= (length parts) 0)
-       (list-commands))
-      ((= (length parts) 1)
-       (complete-command-name (first parts)))
-      ;; Complete arguments (command-specific)
-      (t nil))))
+(defun cmd-help (args)
+  "Show help for commands"
+  (declare (ignore args))
+  (format t "~%Available commands:~%~%")
+  (loop for name being the hash-keys of *command-registry*
+        using (hash-value command)
+        do (format t "  /~A~@[~30T~A~]~%" 
+                   name 
+                   (command-description command)))
+  (format t "~%Type /help <command> for detailed help on a specific command.~%"))
 
-(defun command-help (command-name)
-  "Get help for a command"
-  (let ((cmd (find-command command-name)))
-    (if cmd
-        (or (command-help cmd) "No help available")
-        "Unknown command")))
+(defun cmd-provider (args)
+  "Switch provider or show current"
+  (cond
+    ;; No args - show current
+    ((null args)
+     (format t "Current provider: ~A~%" (lantae:get-config :provider))
+     (format t "Available providers: ~{~A~^, ~}~%" 
+             (lantae-providers:list-providers)))
+    
+    ;; Switch provider
+    (t
+     (let ((provider-name (first args)))
+       (if (lantae-providers:get-provider provider-name)
+           (progn
+             (lantae:set-config :provider provider-name)
+             (format t "Switched to provider: ~A~%" provider-name))
+           (format t "Unknown provider: ~A~%" provider-name))))))
 
-;;; Built-in commands
+(defun cmd-model (args)
+  "Switch model or show current"
+  (cond
+    ;; No args - show current
+    ((null args)
+     (format t "Current model: ~A~%" (lantae:get-config :model))
+     (let ((models (lantae-providers:list-provider-models 
+                   (lantae:get-config :provider))))
+       (when models
+         (format t "Available models: ~{~A~^, ~}~%" models))))
+    
+    ;; Switch model
+    (t
+     (let ((model-name (first args)))
+       (lantae:set-config :model model-name)
+       (format t "Switched to model: ~A~%" model-name)))))
+
+(defun cmd-models (args)
+  "List available models for current provider"
+  (declare (ignore args))
+  (let* ((provider (lantae:get-config :provider))
+         (models (lantae-providers:list-provider-models provider)))
+    (if models
+        (progn
+          (format t "~%Available models for ~A:~%" provider)
+          (dolist (model models)
+            (format t "  - ~A~%" model)))
+        (format t "No models available or provider not connected.~%"))))
+
+(defun cmd-clear (args)
+  "Clear conversation history"
+  (declare (ignore args))
+  (setf lantae:*conversation-history* nil)
+  (format t "Conversation history cleared.~%"))
+
+(defun cmd-info (args)
+  "Show current configuration"
+  (declare (ignore args))
+  (format t "~%Current Configuration:~%")
+  (format t "  Provider: ~A~%" (lantae:get-config :provider))
+  (format t "  Model: ~A~%" (lantae:get-config :model))
+  (format t "  Temperature: ~A~%" (lantae:get-config :temperature))
+  (format t "  Auto-accept: ~A~%" (lantae:get-config :auto-accept))
+  (format t "  Planning mode: ~A~%" (lantae:get-config :planning-mode))
+  (format t "  Agent mode: ~A~%" (lantae:get-config :agent-mode))
+  (format t "~%"))
+
+(defun cmd-env (args)
+  "Check environment variables"
+  (declare (ignore args))
+  (format t "~%Environment Variables:~%")
+  (dolist (var '("OPENAI_API_KEY" "ANTHROPIC_API_KEY" "GEMINI_API_KEY"
+                "MISTRAL_API_KEY" "PERPLEXITY_API_KEY" "AWS_PROFILE"))
+    (let ((value #+sbcl (sb-ext:posix-getenv var)
+                 #-sbcl nil))
+      (format t "  ~A: ~A~%" 
+              var 
+              (if value 
+                  (if (> (length value) 3)
+                      (format nil "~A...~A" 
+                              (subseq value 0 3)
+                              (subseq value (- (length value) 3)))
+                      "***")
+                  "Not set"))))
+  (format t "~%"))
+
+(defun cmd-history (args)
+  "Show conversation history"
+  (declare (ignore args))
+  (if lantae:*conversation-history*
+      (progn
+        (format t "~%Conversation History:~%")
+        (loop for message in (reverse lantae:*conversation-history*)
+              for i from 1
+              do (format t "~%[~A] ~A:~%~A~%"
+                        i
+                        (getf message :role)
+                        (getf message :content))))
+      (format t "No conversation history.~%")))
+
+(defun cmd-temperature (args)
+  "Set response temperature"
+  (if args
+      (handler-case
+          (let ((temp (parse-float (first args))))
+            (if (and (>= temp 0.0) (<= temp 2.0))
+                (progn
+                  (lantae:set-config :temperature temp)
+                  (format t "Temperature set to: ~A~%" temp))
+                (format t "Temperature must be between 0.0 and 2.0~%")))
+        (error ()
+          (format t "Invalid temperature value~%")))
+      (format t "Current temperature: ~A~%" (lantae:get-config :temperature))))
+
+(defun cmd-quit (args)
+  "Exit the REPL"
+  (declare (ignore args))
+  (format t "Goodbye!~%")
+  (lantae-utils:quit))
+
+;;; Command completion functions
+
+(defun provider-completions (partial position)
+  "Get provider name completions"
+  (declare (ignore position))
+  (loop for provider in (lantae-providers:list-providers)
+        when (and (>= (length provider) (length partial))
+                  (string= partial provider :end2 (length partial)))
+        collect provider))
+
+(defun model-completions (partial position)
+  "Get model name completions"
+  (declare (ignore position))
+  (let ((models (lantae-providers:list-provider-models 
+                (lantae:get-config :provider))))
+    (when models
+      (loop for model in models
+            when (and (>= (length model) (length partial))
+                      (string= partial model :end2 (length partial)))
+            collect model))))
+
+;;; Register all built-in commands
+
 (defun register-all-commands ()
   "Register all built-in commands"
+  (register-command "help" #'cmd-help
+                   :description "Show available commands"
+                   :usage "/help [command]")
   
-  (defcommand help ()
-    "Show available commands"
-    (format t "Available commands:~%~%")
-    (dolist (cmd-pair (list-commands))
-      (let* ((name (car cmd-pair))
-             (cmd (cdr cmd-pair))
-             (help (command-help cmd)))
-        (format t "  ~A~:[~;~:*  - ~A~]~%" name help))))
+  (register-command "provider" #'cmd-provider
+                   :description "Switch provider or show current"
+                   :usage "/provider [name]"
+                   :completions-fn #'provider-completions)
   
-  (defcommand provider (&rest args)
-    "Switch provider or show current provider"
-    (cond
-      ;; No args - show current provider
-      ((null args)
-       (format t "Current provider: ~A~%" (get-config :provider))
-       (format t "Current model: ~A~%" (get-config :model)))
-      ;; One arg - switch provider
-      ((= (length args) 1)
-       (let ((provider-name (first args)))
-         (if (member provider-name (list-providers) :test #'string=)
-             (progn
-               (set-config :provider provider-name)
-               (format t "Switched to provider: ~A~%" provider-name))
-             (format t "Unknown provider: ~A~%" provider-name))))
-      ;; Two args - switch provider and model
-      ((= (length args) 2)
-       (let ((provider-name (first args))
-             (model-name (second args)))
-         (if (member provider-name (list-providers) :test #'string=)
-             (progn
-               (set-config :provider provider-name)
-               (set-config :model model-name)
-               (format t "Switched to ~A with model ~A~%" provider-name model-name))
-             (format t "Unknown provider: ~A~%" provider-name))))
-      (t (format t "Usage: provider [name] [model]~%"))))
+  (register-command "model" #'cmd-model
+                   :description "Switch model or show current"
+                   :usage "/model [name]"
+                   :completions-fn #'model-completions)
   
-  (defcommand model (&rest args)
-    "Switch to a different model"
-    (if args
-        (let ((model-name (join-strings args)))
-          (set-config :model model-name)
-          (format t "Switched to model: ~A~%" model-name))
-        (format t "Current model: ~A~%" (get-config :model))))
+  (register-command "models" #'cmd-models
+                   :description "List available models"
+                   :usage "/models")
   
-  (defcommand config (&optional key value)
-    "Show or set configuration values"
-    (cond
-      ;; No args - show all config
-      ((null key)
-       (format t "Current configuration:~%")
-       (lantae-config:with-config-binding nil
-         (let ((config (lantae-config:config-to-plist)))
-           (loop for (k v) on config by #'cddr
-                 do (format t "  ~A: ~A~%" k v)))))
-      ;; One arg - show specific config
-      ((null value)
-       (format t "~A = ~A~%" key (get-config key)))
-      ;; Two args - set config
-      (t
-       (set-config key (parse-value value))
-       (format t "Set ~A = ~A~%" key value))))
+  (register-command "clear" #'cmd-clear
+                   :description "Clear conversation history"
+                   :usage "/clear")
   
-  (defcommand clear ()
-    "Clear conversation history"
-    ;; Clear conversation history in main package
-    (when (find-package :lantae)
-      (setf (symbol-value (intern "*CONVERSATION-HISTORY*" :lantae)) '()))
-    (format t "Conversation history cleared.~%"))
+  (register-command "info" #'cmd-info
+                   :description "Show current configuration"
+                   :usage "/info")
   
-  (defcommand info ()
-    "Show system information"
-    (format t "Lantae LISP v~A~%" 
-            (if (find-package :lantae)
-                (symbol-value (intern "*VERSION*" :lantae))
-                "1.0.0-lisp"))
-    (format t "Provider: ~A~%" (get-config :provider))
-    (format t "Model: ~A~%" (get-config :model))
-    (format t "Available providers: ~{~A~^, ~}~%" (list-providers))
-    (format t "LISP implementation: ~A ~A~%" 
-            (lisp-implementation-type) 
-            (lisp-implementation-version)))
+  (register-command "env" #'cmd-env
+                   :description "Check environment variables"
+                   :usage "/env")
   
-  (defcommand quit ()
-    "Exit the REPL"
-    (format t "Goodbye!~%")
-    (quit)))
+  (register-command "history" #'cmd-history
+                   :description "Show conversation history"
+                   :usage "/history")
+  
+  (register-command "temperature" #'cmd-temperature
+                   :description "Set response temperature (0.0-2.0)"
+                   :usage "/temperature [value]")
+  
+  (register-command "quit" #'cmd-quit
+                   :description "Exit the REPL"
+                   :usage "/quit")
+  
+  (register-command "exit" #'cmd-quit
+                   :description "Exit the REPL"
+                   :usage "/exit")
+  
+  ;; Return success
+  t)
 
-
-(defun show-provider-info (provider-name)
-  "Show information about a provider"
-  (let ((provider (get-provider provider-name)))
-    (if provider
-        (progn
-          (format t "Provider: ~A~%" provider-name)
-          (let ((models (list-provider-models provider-name)))
-            (when models
-              (format t "Available models:~%")
-              (dolist (model models)
-                (format t "  - ~A~%" model)))))
-        (format t "Provider ~A not found~%" provider-name))))
-
-;;; Tab completion support
-(defun setup-readline-completion ()
-  "Setup readline-style completion (if available)"
-  ;; This would integrate with readline library
-  ;; For now, just a placeholder
-  nil)
-
-;;; Command history
-(defun add-to-history (command)
-  "Add command to history"
-  (push command *command-history*)
-  ;; Limit history size
-  (when (> (length *command-history*) 100)
-    (setf *command-history* (subseq *command-history* 0 100))))
-
-(defun get-history-item (n)
-  "Get nth item from history"
-  (when (and (>= n 0) (< n (length *command-history*)))
-    (nth n *command-history*)))
-
-(defun search-history (pattern)
-  "Search command history"
-  (remove-if-not (lambda (cmd) (search pattern cmd :test #'string-equal))
-                 *command-history*))
-
-;;; Command macros for advanced usage
-(defmacro with-command-context (&body body)
-  "Execute body with command context"
-  `(let ((*print-pretty* t)
-         (*print-case* :downcase))
-     ,@body))
-
-(defmacro define-command-alias (alias command)
-  "Define a command alias"
-  `(setf (gethash ,(string-downcase (string alias)) *command-aliases*)
-         ,(string-downcase (string command))))
-
-;;; Initialize default aliases
-(defun setup-default-aliases ()
-  "Setup default command aliases"
-  (define-command-alias h help)
-  (define-command-alias p provider)
-  (define-command-alias m model)
-  (define-command-alias c config)
-  (define-command-alias q quit)
-  (define-command-alias exit quit))
-
-;; Setup aliases when loaded
-(setup-default-aliases)
+;;; Utility for pretty printing
+(defun parse-float (string)
+  "Parse string to float"
+  (handler-case
+      (read-from-string string)
+    (error ()
+      (error "Invalid number: ~A" string))))
