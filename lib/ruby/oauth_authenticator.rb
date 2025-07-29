@@ -288,27 +288,27 @@ module Lantae
     end
     
     def open_browser(url)
-      local_url = "http://localhost:#{@actual_port || PORT}"
+      # Only open the provider console, not localhost
+      # This makes it work more like Claude Code
       
       case RUBY_PLATFORM
       when /darwin/
-        # Use AppleScript to open both URLs with a slight delay
         system(%Q{osascript -e 'tell application "System Events" to open location "#{url}"'})
-        sleep 0.5
-        system(%Q{osascript -e 'tell application "System Events" to open location "#{local_url}"'})
       when /linux/
         system("xdg-open '#{url}' > /dev/null 2>&1 &")
-        sleep 0.5  
-        system("xdg-open '#{local_url}' > /dev/null 2>&1 &")
       when /mswin|mingw/
         system("start \"\" \"#{url}\"")
-        sleep 0.5
-        system("start \"\" \"#{local_url}\"")
       else
-        puts "⚠️  Please manually open these URLs:"
-        puts "   1. #{url}"
-        puts "   2. #{local_url}"
+        puts "⚠️  Please manually open: #{url}"
       end
+      
+      # Show the local URL for manual paste after getting key
+      puts "\n📋 After creating your API key in the browser:"
+      puts "   1. Copy the API key"
+      puts "   2. Come back to this terminal" 
+      puts "   3. Paste it when prompted"
+      puts ""
+      puts "⚡ Or visit: http://localhost:#{@actual_port || PORT} for guided setup"
     end
     
     def landing_page_html

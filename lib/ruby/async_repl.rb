@@ -3,6 +3,7 @@ require 'readline'
 require 'time'
 require_relative 'ui_components'
 require_relative 'side_panel_manager'
+require_relative 'direct_authenticator'
 
 module Lantae
   class AsyncREPL
@@ -558,30 +559,36 @@ module Lantae
       end
       
       add_command_output(command_id, "🔐 Starting #{provider.capitalize} authentication...")
-      add_command_output(command_id, "🌐 Opening browser for OAuth-style login...")
+      add_command_output(command_id, "🌐 Opening #{provider.capitalize} Console in browser...")
+      add_command_output(command_id, "📋 Please create an API key and copy it")
+      add_command_output(command_id, "⏳ Then paste it in the terminal when prompted")
       
-      # Start authentication in a separate thread to avoid blocking
+      # Mark command as completed since the actual auth happens in terminal
+      @command_mutex.synchronize do
+        @commands[command_id][:status] = :completed
+        @commands[command_id][:completed_at] = Time.now
+      end
+      
+      # Run authentication in main thread to handle terminal input
       Thread.new do
-        begin
-          api_key = Lantae::OAuthAuthenticator.authenticate(provider)
-          
-          if api_key
-            # Update command with success
-            add_command_output(command_id, "✅ Authentication successful!")
-            
-            # Switch to the authenticated provider
-            @provider_manager.switch_provider(provider)
-            info = @provider_manager.get_provider_info
-            add_command_output(command_id, "🎉 Switched to: #{info[:provider]} (#{info[:model]})")
-            add_command_output(command_id, "You can now use #{provider.capitalize} for your conversations!")
-          else
-            add_command_output(command_id, "❌ Authentication failed or cancelled")
-            add_command_output(command_id, "You can try again with: /login #{provider}")
-          end
-        rescue => e
-          add_command_output(command_id, "❌ Authentication error: #{e.message}")
-          add_command_output(command_id, "You can try again with: /login #{provider}")
+        sleep 0.5  # Let the command output display first
+        
+        result = Lantae::DirectAuthenticator.login(provider)
+        
+        if result[:success]
+          puts "\n🎉 Switching to #{provider.capitalize}..."
+          @provider_manager.switch_provider(provider)
+          info = @provider_manager.get_provider_info
+          puts "✅ Now using: #{info[:provider]} (#{info[:model]})"
+          puts "💬 You can start chatting with #{provider.capitalize}!\n"
+        else
+          puts "\n❌ Authentication failed: #{result[:error]}"
+          puts "💡 You can try again with: /login #{provider}\n"
         end
+        
+        # Show the prompt again
+        print "> "
+        $stdout.flush
       end
     end
     
