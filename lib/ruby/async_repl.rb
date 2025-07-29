@@ -515,6 +515,14 @@ module Lantae
         puts "\nWaiting for #{active_count} active commands to complete..."
         @command_threads.each(&:join)
       end
+      
+      # Restore readline state to prevent interfering with other commands
+      begin
+        Readline.completion_proc = nil
+        Readline.completion_append_character = nil
+      rescue
+        # Ignore cleanup errors
+      end
     end
   end
 end

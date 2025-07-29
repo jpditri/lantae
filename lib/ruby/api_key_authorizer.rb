@@ -85,10 +85,14 @@ module Lantae
       puts
       print "Paste your API key here: "
       
-      # Disable echo for security
-      system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
-      api_key = gets.chomp
-      system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+      # Disable echo for security with proper cleanup
+      begin
+        system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
+        api_key = gets.chomp
+      ensure
+        # Always restore echo, even if interrupted
+        system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+      end
       puts # New line after hidden input
       
       if validate_api_key(provider, api_key)
@@ -109,10 +113,14 @@ module Lantae
       provider_name = provider.capitalize
       print "\nEnter your #{provider_name} API key: "
       
-      # Disable echo for security
-      system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
-      api_key = gets.chomp
-      system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+      # Disable echo for security with proper cleanup
+      begin
+        system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
+        api_key = gets.chomp
+      ensure
+        # Always restore echo, even if interrupted
+        system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+      end
       puts # New line after hidden input
       
       if validate_api_key(provider, api_key)

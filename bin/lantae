@@ -32,6 +32,7 @@ require_relative '../lib/ruby/response_formatter'
 require_relative '../lib/ruby/api_key_authorizer'
 require_relative '../lib/ruby/intelligent_router'
 require_relative '../lib/ruby/planning_agent'
+require_relative '../lib/ruby/cleanup_handler'
 
 VERSION = '1.0.0'
 
@@ -3181,6 +3182,9 @@ rescue => e
 end
 
 def main
+  # Register cleanup handlers early to ensure they run on exit
+  Lantae::CleanupHandler.register_cleanup
+  
   options = {
     model: 'qwen3:0.6b',
     provider: 'ollama',

@@ -34,7 +34,8 @@ module Lantae
       @history_index = 0
       
       # Set up signal handlers for terminal resize
-      trap('WINCH') { handle_resize }
+      # Store original handler so we can restore it later
+      @original_winch_handler = trap('WINCH') { handle_resize }
     end
     
     def start
@@ -49,6 +50,13 @@ module Lantae
     def stop
       @running = false
       restore_terminal
+      
+      # Restore original signal handler
+      begin
+        trap('WINCH', @original_winch_handler || 'DEFAULT')
+      rescue
+        # Ignore signal restoration errors
+      end
     end
     
     def add_output(text, type = :info)
