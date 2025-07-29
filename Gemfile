@@ -7,6 +7,7 @@ gem 'readline', '~> 0.0.2'
 gem 'sqlite3', '~> 1.7'
 gem 'parser', '~> 3.3', '>= 3.3.6'
 gem 'logger', '~> 1.6'
+gem 'webrick', '~> 1.8'
 
 group :test do
   gem 'rspec', '~> 3.12'
