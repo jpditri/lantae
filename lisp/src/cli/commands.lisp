@@ -208,6 +208,24 @@
           (format t "Invalid temperature value~%")))
       (format t "Current temperature: ~A~%" (lantae:get-config :temperature))))
 
+(defun cmd-streaming (args)
+  "Toggle streaming mode or set it explicitly"
+  (cond
+    ((null args)
+     ;; Toggle streaming
+     (let ((current (lantae:get-config :streaming)))
+       (lantae:set-config :streaming (not current))
+       (format t "Streaming ~A~%" (if (lantae:get-config :streaming) "enabled" "disabled"))))
+    ((= (length args) 1)
+     ;; Set streaming explicitly
+     (let ((value (or (string-equal (first args) "on")
+                      (string-equal (first args) "true")
+                      (string-equal (first args) "yes"))))
+       (lantae:set-config :streaming value)
+       (format t "Streaming ~A~%" (if value "enabled" "disabled"))))
+    (t
+     (format t "Usage: /streaming [on|off]~%"))))
+
 (defun cmd-quit (args)
   "Exit the REPL"
   (declare (ignore args))
@@ -276,6 +294,10 @@
   (register-command "temperature" #'cmd-temperature
                    :description "Set response temperature (0.0-2.0)"
                    :usage "/temperature [value]")
+  
+  (register-command "streaming" #'cmd-streaming
+                   :description "Toggle streaming mode"
+                   :usage "/streaming [on|off]")
   
   (register-command "quit" #'cmd-quit
                    :description "Exit the REPL"

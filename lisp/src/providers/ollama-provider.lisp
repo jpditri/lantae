@@ -53,20 +53,29 @@
          (request-body `((:model . ,model)
                         (:messages . ,(mapcar #'format-message messages))
                         (:temperature . ,temperature)
-                        (:stream . t))))
+                        (:stream . t)))
+         (accumulated-response ""))
     
-    (http-stream url
-                 :method :post
-                 :content request-body
-                 :callback (lambda (line)
-                            (handler-case
-                                (let* ((json (decode-json line))
-                                       (message (cdr (assoc :message json)))
-                                       (content (when message
-                                               (cdr (assoc :content message)))))
-                                  (when (and callback content)
-                                    (funcall callback content)))
-                              (error () nil))))))
+    (let ((stream-result 
+           (http-stream url
+                        :method :post
+                        :content request-body
+                        :callback (when (find-package :lantae-streaming)
+                                   (funcall (intern "CREATE-STREAMING-CALLBACK" :lantae-streaming)
+                                           "ollama"
+                                           :on-token (lambda (token)
+                                                      (when callback
+                                                        (funcall callback token))
+                                                      (setf accumulated-response 
+                                                            (concatenate 'string accumulated-response token)))
+                                           :on-complete (lambda ()
+                                                         ;; Return the complete accumulated response
+                                                         nil)
+                                           :on-error (lambda (error)
+                                                      (format t "~%Streaming error: ~A~%" error)))))))
+      (if (http-result-success-p stream-result)
+          (success `(:role "assistant" :content ,accumulated-response))
+          (failure (http-result-error stream-result))))))
 
 ;;; Model management
 (defun ollama-list-models (base-url)

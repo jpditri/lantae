@@ -45,6 +45,7 @@
     :no-banner nil
     :enable-mcp nil
     :enable-lsp nil
+    :streaming nil
     :max-retries 3
     :retry-delay 1.0
     :performance (:enable-caching t
@@ -110,7 +111,7 @@
 ;;; Banner and help functions
 (defun print-banner ()
   "Print colorful ASCII banner"
-  (unless (get-config :no-banner)
+  (unless (and *current-config* (get-config :no-banner))
     (format t "~%")
     (if (find-package :lantae-colors)
         (progn
@@ -319,6 +320,16 @@
   "Process regular chat message"
   (push `(:role "user" :content ,message) *conversation-history*)
   
+  ;; Check if streaming is enabled
+  (let ((streaming (get-config :streaming)))
+    (if streaming
+        (process-streaming-chat-message message)
+        (process-regular-chat-message message))))
+
+(defun process-regular-chat-message (message)
+  "Process chat message without streaming"
+  (declare (ignore message))
+  
   ;; Show thinking indicator
   (when (find-package :lantae-colors)
     (funcall (intern "PRINT-COLORED" :lantae-colors) "🤖 Thinking..." :cyan)
@@ -350,6 +361,57 @@
                                 "Provider not available"))))
           (unless (find-package :lantae-colors)
             (format t "Error: Failed to get response~%"))))))
+
+(defun process-streaming-chat-message (message)
+  "Process chat message with streaming"
+  (declare (ignore message))
+  
+  ;; Show streaming indicator
+  (when (find-package :lantae-colors)
+    (funcall (intern "PRINT-COLORED" :lantae-colors) "🤖 Streaming..." :cyan)
+    (format t "~%"))
+  
+  ;; Check if provider supports streaming
+  (let* ((provider (get-config :provider))
+         (model (get-config :model))
+         (temperature (get-config :temperature))
+         (provider-obj (when (find-package :lantae-providers)
+                        (funcall (intern "GET-PROVIDER" :lantae-providers) provider))))
+    
+    (if (and provider-obj 
+             (funcall (intern "PROVIDER-STREAM-FN" :lantae-providers) provider-obj))
+        ;; Use streaming
+        (let ((accumulated-response ""))
+          (let ((result (when (find-package :lantae-providers)
+                         (funcall (intern "PROVIDER-STREAM" :lantae-providers)
+                                  provider model *conversation-history* 
+                                  :temperature temperature
+                                  :callback (lambda (token)
+                                             (princ token)
+                                             (force-output)
+                                             (setf accumulated-response 
+                                                   (concatenate 'string accumulated-response token)))))))
+            (if (and result
+                     (funcall (intern "RESULT-SUCCESS-P" :lantae-providers) result))
+                (progn
+                  (format t "~%")
+                  ;; Add assistant response to history
+                  (push `(:role "assistant" :content ,accumulated-response) *conversation-history*))
+                (progn
+                  (when (find-package :lantae-colors)
+                    (funcall (intern "PRINT-ERROR" :lantae-colors) 
+                             (format nil "Streaming failed: ~A" 
+                                    (if result
+                                        (funcall (intern "RESULT-ERROR" :lantae-providers) result)
+                                        "Provider not available"))))
+                  (unless (find-package :lantae-colors)
+                    (format t "Error: Streaming failed~%"))))))
+        ;; Fallback to regular chat
+        (progn
+          (when (find-package :lantae-colors)
+            (funcall (intern "PRINT-WARNING" :lantae-colors) 
+                     "Provider doesn't support streaming, using regular mode"))
+          (process-regular-chat-message nil)))))
 
 (defun process-slash-command (command)
   "Process slash command"

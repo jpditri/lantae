@@ -25,6 +25,7 @@
     "src/utils/utils.lisp"
     "src/utils/http-client.lisp"
     "src/utils/colors.lisp"
+    "src/utils/streaming.lisp"
     "src/utils/mission-abort.lisp"
     
     ;; Configuration
