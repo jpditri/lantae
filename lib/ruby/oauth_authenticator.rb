@@ -54,14 +54,11 @@ module Lantae
       puts
       puts @config[:description]
       puts
-      puts "🌐 We'll open your browser to complete authentication"
-      puts "📋 You can copy your API key from the console and paste it here"
+      puts "🌐 Opening browser for OAuth-style authentication..."
+      puts "📋 This will work just like Claude Code!"
       puts
-      puts "Press Enter to continue, or 'q' to use manual entry..."
       
-      choice = gets.chomp.downcase
-      return manual_fallback if choice == 'q'
-      
+      # Start auth flow immediately (no prompt, just like Claude Code)
       start_auth_flow
     end
     

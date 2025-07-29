@@ -307,6 +307,7 @@ module Lantae
             /provider <name>     - Switch provider for future commands
             /models              - List available models
             /side                - Toggle side panel display
+            /login [provider]    - Authenticate with provider (like Claude Code)
             /help                - Show this help
             
           Regular Commands:
@@ -330,6 +331,9 @@ module Lantae
         @options[:side_panel] = !@options[:side_panel]
         status = @options[:side_panel] ? "enabled" : "disabled"
         add_command_output(command_id, "Side panel #{status}")
+        
+      when 'login'
+        handle_login_command(command_id, args)
         
       else
         # Command not handled by async REPL
@@ -518,7 +522,7 @@ module Lantae
     
     def setup_autocomplete
       # Basic autocomplete for slash commands
-      commands = %w[status cancel clear model provider models help]
+      commands = %w[status cancel clear model provider models side login help]
       
       comp = proc do |input|
         if input.start_with?('/')
@@ -533,6 +537,52 @@ module Lantae
       Readline.completion_append_character = ' '
     rescue
       # Ignore autocomplete setup errors
+    end
+    
+    def handle_login_command(command_id, args)
+      provider = args.strip.empty? ? 'anthropic' : args.strip.downcase
+      
+      # Validate provider
+      unless %w[anthropic openai gemini].include?(provider)
+        add_command_output(command_id, "❌ Unsupported provider '#{provider}'. Supported: anthropic, openai, gemini")
+        return
+      end
+      
+      # Check if already authenticated
+      if has_api_key_for_provider?(provider)
+        add_command_output(command_id, "✅ Already authenticated with #{provider.capitalize}")
+        @provider_manager.switch_provider(provider)
+        info = @provider_manager.get_provider_info
+        add_command_output(command_id, "Switched to: #{info[:provider]} (#{info[:model]})")
+        return
+      end
+      
+      add_command_output(command_id, "🔐 Starting #{provider.capitalize} authentication...")
+      add_command_output(command_id, "🌐 Opening browser for OAuth-style login...")
+      
+      # Start authentication in a separate thread to avoid blocking
+      Thread.new do
+        begin
+          api_key = Lantae::OAuthAuthenticator.authenticate(provider)
+          
+          if api_key
+            # Update command with success
+            add_command_output(command_id, "✅ Authentication successful!")
+            
+            # Switch to the authenticated provider
+            @provider_manager.switch_provider(provider)
+            info = @provider_manager.get_provider_info
+            add_command_output(command_id, "🎉 Switched to: #{info[:provider]} (#{info[:model]})")
+            add_command_output(command_id, "You can now use #{provider.capitalize} for your conversations!")
+          else
+            add_command_output(command_id, "❌ Authentication failed or cancelled")
+            add_command_output(command_id, "You can try again with: /login #{provider}")
+          end
+        rescue => e
+          add_command_output(command_id, "❌ Authentication error: #{e.message}")
+          add_command_output(command_id, "You can try again with: /login #{provider}")
+        end
+      end
     end
     
     def has_api_key_for_provider?(provider)
