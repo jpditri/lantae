@@ -231,6 +231,13 @@
             (error (e)
               (format t "OpenAI provider not registered: ~A~%" e))))
         
+        ;; Register Anthropic provider if package is loaded (even without API key for testing)
+        (when (find-package :lantae-providers-anthropic)
+          (handler-case
+              (register-provider (funcall (intern "MAKE-ANTHROPIC-PROVIDER" :lantae-providers-anthropic)))
+            (error (e)
+              (format t "Anthropic provider not registered: ~A~%" e))))
+        
         ;; Register cloud providers if API keys are available
         (let ((openai-key (or #+sbcl (sb-ext:posix-getenv "OPENAI_API_KEY")
                               #-sbcl nil
