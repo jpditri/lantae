@@ -5,6 +5,7 @@ require 'parser/current'
 $VERBOSE = original_verbose
 
 require 'json'
+require_relative 'task_complexity'
 
 class TaskAnalyzer
   attr_reader :patterns, :complexity_factors
@@ -28,7 +29,7 @@ class TaskAnalyzer
     # Calculate weighted score
     score = calculate_complexity_score(factors)
     
-    TaskComplexity.new(score: score, factors: factors)
+    Lantae::TaskComplexity.new(score: score, factors: factors)
   end
 
   # Analyze generated code for common issues
@@ -43,7 +44,7 @@ class TaskAnalyzer
     when :python
       issues.concat(analyze_python_code(code))
     else
-      issues << CodeIssue.new(
+      issues << Lantae::Lantae::CodeIssue.new(
         type: :unsupported_language,
         message: "Language #{language} not supported for analysis",
         severity: :warning
@@ -171,7 +172,7 @@ class TaskAnalyzer
     begin
       Parser::CurrentRuby.parse(code)
     rescue Parser::SyntaxError => e
-      issues << CodeIssue.new(
+      issues << Lantae::CodeIssue.new(
         type: :syntax_error,
         message: e.message,
         line: e.diagnostic.location.line,
@@ -210,7 +211,7 @@ class TaskAnalyzer
 
   def check_eof_markers(code, issues)
     if code.match?(@patterns[:eof_marker])
-      issues << CodeIssue.new(
+      issues << Lantae::CodeIssue.new(
         type: :eof_marker,
         message: "Code contains EOF marker at end",
         severity: :warning,
@@ -223,7 +224,7 @@ class TaskAnalyzer
     lines = code.split("\n")
     lines.each_with_index do |line, index|
       if line.match?(@patterns[:unclosed_string])
-        issues << CodeIssue.new(
+        issues << Lantae::CodeIssue.new(
           type: :unclosed_string,
           message: "Possible unclosed string",
           line: index + 1,
@@ -239,7 +240,7 @@ class TaskAnalyzer
     methods.each do |method|
       lines = method[0].split("\n").size
       if lines > 20
-        issues << CodeIssue.new(
+        issues << Lantae::CodeIssue.new(
           type: :long_method,
           message: "Method is too long (#{lines} lines)",
           severity: :warning
@@ -252,7 +253,7 @@ class TaskAnalyzer
     lines = code.split("\n")
     lines.each_with_index do |line, index|
       if line.strip.end_with?(';') && !line.include?('for')
-        issues << CodeIssue.new(
+        issues << Lantae::CodeIssue.new(
           type: :unnecessary_semicolon,
           message: "Unnecessary semicolon",
           line: index + 1,
@@ -266,7 +267,7 @@ class TaskAnalyzer
   def check_arrow_functions(code, issues)
     # Check for incorrect arrow function syntax
     if code.match?(/=>\s*{[^}]*}\s*;/)
-      issues << CodeIssue.new(
+      issues << Lantae::CodeIssue.new(
         type: :arrow_function_syntax,
         message: "Arrow function might need parentheses",
         severity: :warning
@@ -277,7 +278,7 @@ class TaskAnalyzer
   def check_async_await(code, issues)
     # Check for missing await
     if code.match?(/async.*function.*{[^}]*fetch\([^)]*\)[^}]*}/) && !code.match?(/await\s+fetch/)
-      issues << CodeIssue.new(
+      issues << Lantae::CodeIssue.new(
         type: :missing_await,
         message: "Async function might be missing await",
         severity: :warning
@@ -300,7 +301,7 @@ class TaskAnalyzer
       elsif stripped.match?(/^(else|elif|except|finally)/)
         expected = indent_stack[-2] || 0
         if indent != expected
-          issues << CodeIssue.new(
+          issues << Lantae::CodeIssue.new(
             type: :indentation_error,
             message: "Incorrect indentation",
             line: index + 1,
@@ -315,7 +316,7 @@ class TaskAnalyzer
     lines = code.split("\n")
     lines.each_with_index do |line, index|
       if line.match?(/^\s*(if|for|while|def|class|try|with|else|elif|except|finally)\s+.*[^:]$/)
-        issues << CodeIssue.new(
+        issues << Lantae::CodeIssue.new(
           type: :missing_colon,
           message: "Missing colon at end of statement",
           line: index + 1,

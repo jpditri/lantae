@@ -4,6 +4,9 @@ require 'time'
 require_relative 'stable_ui'
 require_relative 'side_panel_manager'
 require_relative 'direct_authenticator'
+require_relative 'planning_agent'
+require_relative 'task_analyzer'
+require_relative 'workspace_authenticator'
 
 module Lantae
   class StableAsyncREPL
@@ -26,6 +29,11 @@ module Lantae
       
       # Extra managers
       @extra_managers = {}
+      
+      # Planning components
+      @task_analyzer = TaskAnalyzer.new
+      @planning_agent = PlanningAgent.new(provider_manager, options)
+      @planning_threshold = options[:planning_threshold] || 3.0
     end
     
     def set_extra_managers(managers)
@@ -90,7 +98,7 @@ module Lantae
       "\e[96m║                            Lantae - Stable UI Mode                           ║\e[0m\n" +
       "\e[96m╠══════════════════════════════════════════════════════════════════════════════╣\e[0m\n" +
       "\e[96m║\e[0m Provider: \e[93m#{provider_info[:provider]}\e[0m | Model: \e[92m#{provider_info[:model]}\e[0m".ljust(87) + "\e[96m║\e[0m\n" +
-      "\e[96m║\e[0m Commands: /help, /login, /provider, /model, /side, /clear                    \e[96m║\e[0m\n" +
+      "\e[96m║\e[0m Commands: /help, /login, /workspace, /plan, /auto, /side, /clear            \e[96m║\e[0m\n" +
       "\e[96m╚══════════════════════════════════════════════════════════════════════════════╝\e[0m"
     end
     
@@ -321,6 +329,9 @@ module Lantae
           /login [provider]  - Authenticate with provider
           /provider <name>   - Switch provider
           /model <name>      - Switch model
+          /workspace [name]  - Switch workspace
+          /plan <task>       - Create execution plan
+          /auto              - Toggle auto-planning
           /side              - Toggle side panel
           /clear             - Clear screen
           exit/quit          - Exit

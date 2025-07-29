@@ -17,7 +17,7 @@ module Lantae
       'gemini' => /^AIza/
     }
     
-    def self.login(provider)
+    def self.login(provider, options = {})
       provider = provider.to_s.downcase
       console_url = CONSOLE_URLS[provider]
       
@@ -45,7 +45,7 @@ module Lantae
       api_key = get_hidden_input
       
       if api_key && validate_key(provider, api_key)
-        save_api_key(provider, api_key)
+        save_api_key(provider, api_key, options)
         puts "\n✅ Authentication successful!"
         return { success: true, api_key: api_key }
       else
@@ -87,26 +87,32 @@ module Lantae
       pattern ? key.match?(pattern) : true
     end
     
-    def self.save_api_key(provider, api_key)
+    def self.save_api_key(provider, api_key, options = {})
       # Save to environment
       ENV["#{provider.upcase}_API_KEY"] = api_key
       
-      # Save to file
-      env_file = File.expand_path('~/.lantae_env')
-      env_var = "#{provider.upcase}_API_KEY"
-      
-      # Read existing content
-      existing = File.exist?(env_file) ? File.read(env_file) : ""
-      
-      # Update or add key
-      if existing.include?("#{env_var}=")
-        new_content = existing.gsub(/#{env_var}=.*/, "#{env_var}=#{api_key}")
+      # If workspace is specified, save to workspace
+      if options[:workspace]
+        require_relative 'workspace_authenticator'
+        Lantae::WorkspaceAuthenticator.set_key(provider, api_key, options[:workspace])
       else
-        new_content = existing + "\n#{env_var}=#{api_key}\n"
+        # Save to file
+        env_file = File.expand_path('~/.lantae_env')
+        env_var = "#{provider.upcase}_API_KEY"
+        
+        # Read existing content
+        existing = File.exist?(env_file) ? File.read(env_file) : ""
+        
+        # Update or add key
+        if existing.include?("#{env_var}=")
+          new_content = existing.gsub(/#{env_var}=.*/, "#{env_var}=#{api_key}")
+        else
+          new_content = existing + "\n#{env_var}=#{api_key}\n"
+        end
+        
+        File.write(env_file, new_content)
+        File.chmod(0600, env_file)
       end
-      
-      File.write(env_file, new_content)
-      File.chmod(0600, env_file)
     end
   end
 end

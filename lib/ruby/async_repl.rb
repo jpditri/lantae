@@ -4,6 +4,9 @@ require 'time'
 require_relative 'ui_components'
 require_relative 'side_panel_manager'
 require_relative 'direct_authenticator'
+require_relative 'planning_agent'
+require_relative 'task_analyzer'
+require_relative 'workspace_authenticator'
 
 module Lantae
   class AsyncREPL
@@ -27,6 +30,11 @@ module Lantae
       
       # Extra managers
       @extra_managers = {}
+      
+      # Planning components
+      @task_analyzer = TaskAnalyzer.new
+      @planning_agent = PlanningAgent.new(provider_manager, options)
+      @planning_threshold = options[:planning_threshold] || 3.0
     end
     
     def set_extra_managers(managers)
@@ -78,11 +86,19 @@ module Lantae
       # Skip for local providers
       return if provider == 'ollama'
       
-      # Check if API key exists
-      env_key = "#{provider.upcase}_API_KEY"
+      # Load workspace keys if in a workspace
+      if @options[:workspace]
+        Lantae::WorkspaceAuthenticator.load_workspace_keys(@options[:workspace])
+      end
       
-      if ENV[env_key].nil? && !File.exist?(File.expand_path('~/.lantae_env'))
+      # Check if API key exists
+      if !has_api_key_for_provider?(provider)
         puts "\n#{"\e[33m"}No API key found for #{provider.capitalize}.#{"\e[0m"}"
+        
+        if @options[:workspace]
+          puts "Workspace: #{@options[:workspace]}"
+        end
+        
         puts "Would you like to set it up now? (y/n): "
         
         response = gets&.chomp&.downcase
@@ -91,8 +107,9 @@ module Lantae
           unless api_key
             puts "\n#{"\e[31m"}Warning: No API key configured. Commands will fail.#{"\e[0m"}"
             puts "You can set it up later by:"
-            puts "  1. Running: export #{env_key}='your-api-key'"
-            puts "  2. Or creating ~/.lantae_env with: #{env_key}=your-api-key\n"
+            puts "  1. Using: /login #{provider}"
+            puts "  2. Running: export #{provider.upcase}_API_KEY='your-api-key'"
+            puts "  3. Or creating ~/.lantae_env with: #{provider.upcase}_API_KEY=your-api-key\n"
           end
         else
           puts "\n#{"\e[90m"}Skipping API key setup. You can set it up later.#{"\e[0m"}\n"
@@ -308,6 +325,9 @@ module Lantae
             /models              - List available models
             /side                - Toggle side panel display
             /login [provider]    - Authenticate with provider (like Claude Code)
+            /workspace [name]    - Switch to workspace authentication context
+            /plan <task>         - Create execution plan for complex task
+            /auto                - Toggle automatic planning for complex tasks
             /help                - Show this help
             
           Regular Commands:
@@ -335,6 +355,15 @@ module Lantae
       when 'login'
         handle_login_command(command_id, args)
         
+      when 'workspace'
+        handle_workspace_command(command_id, args)
+        
+      when 'plan'
+        handle_plan_command(command_id, args)
+        
+      when 'auto'
+        toggle_auto_planning(command_id)
+        
       else
         # Command not handled by async REPL
         add_command_output(command_id, "Unknown command: /#{cmd}. Use /help for available commands.")
@@ -343,6 +372,15 @@ module Lantae
     
     def process_ai_command(command_id)
       command = @commands[command_id]
+      
+      # Analyze task complexity if auto-planning is enabled
+      if @options[:auto_planning] && should_use_planning?(command[:input])
+        @output_mutex.synchronize do
+          puts "\n#{"\e[94m"}[#{command_id}] Task requires planning...#{"\e[0m"}"
+        end
+        process_planned_command(command_id)
+        return
+      end
       
       # Create conversation context for this command
       command_conversation = @conversation.dup
@@ -524,7 +562,7 @@ module Lantae
     
     def setup_autocomplete
       # Basic autocomplete for slash commands
-      commands = %w[status cancel clear model provider models side login help]
+      commands = %w[status cancel clear model provider models side login workspace plan auto help]
       
       comp = proc do |input|
         if input.start_with?('/')
@@ -553,6 +591,12 @@ module Lantae
       # Check if already authenticated
       if has_api_key_for_provider?(provider)
         add_command_output(command_id, "✅ Already authenticated with #{provider.capitalize}")
+        
+        # Load workspace keys if in a workspace
+        if @options[:workspace]
+          Lantae::WorkspaceAuthenticator.load_workspace_keys(@options[:workspace])
+        end
+        
         @provider_manager.switch_provider(provider)
         info = @provider_manager.get_provider_info
         add_command_output(command_id, "Switched to: #{info[:provider]} (#{info[:model]})")
@@ -574,7 +618,7 @@ module Lantae
       Thread.new do
         sleep 0.5  # Let the command output display first
         
-        result = Lantae::DirectAuthenticator.login(provider)
+        result = Lantae::DirectAuthenticator.login(provider, workspace: @options[:workspace])
         
         if result[:success]
           puts "\n🎉 Switching to #{provider.capitalize}..."
@@ -595,7 +639,176 @@ module Lantae
     
     def has_api_key_for_provider?(provider)
       env_key = "#{provider.upcase}_API_KEY"
+      
+      # Check workspace auth first
+      if @options[:workspace]
+        return Lantae::WorkspaceAuthenticator.has_key?(provider, @options[:workspace])
+      end
+      
       ENV[env_key] || File.exist?(File.expand_path('~/.lantae_env'))
+    end
+    
+    def handle_workspace_command(command_id, args)
+      workspace_name = args.strip
+      
+      if workspace_name.empty?
+        # Show current workspace
+        current = @options[:workspace] || "default"
+        add_command_output(command_id, "Current workspace: #{current}")
+        add_command_output(command_id, "Available workspaces: #{Lantae::WorkspaceAuthenticator.list_workspaces.join(', ')}")
+      else
+        # Switch workspace
+        @options[:workspace] = workspace_name
+        add_command_output(command_id, "Switched to workspace: #{workspace_name}")
+        
+        # Check available keys in this workspace
+        available_providers = Lantae::WorkspaceAuthenticator.available_providers(workspace_name)
+        if available_providers.any?
+          add_command_output(command_id, "Available providers: #{available_providers.join(', ')}")
+        else
+          add_command_output(command_id, "No API keys configured in this workspace yet")
+        end
+      end
+    end
+    
+    def handle_plan_command(command_id, args)
+      if args.strip.empty?
+        add_command_output(command_id, "Usage: /plan <task description>")
+        return
+      end
+      
+      # Create plan
+      plan = @planning_agent.create_plan(args, {
+        available_tools: @tool_manager&.list_available_tools || []
+      })
+      
+      # Format plan output
+      plan_output = format_plan(plan)
+      add_command_output(command_id, plan_output)
+      
+      # Store plan for potential execution
+      @commands[command_id][:plan] = plan
+      add_command_output(command_id, "\nTo execute this plan, use: /execute #{command_id}")
+    end
+    
+    def toggle_auto_planning(command_id)
+      @options[:auto_planning] = !@options[:auto_planning]
+      status = @options[:auto_planning] ? "enabled" : "disabled"
+      add_command_output(command_id, "Automatic planning for complex tasks: #{status}")
+    end
+    
+    def should_use_planning?(input)
+      complexity = @task_analyzer.assess_complexity(input)
+      complexity.score >= @planning_threshold
+    end
+    
+    def process_planned_command(command_id)
+      command = @commands[command_id]
+      
+      # Create plan
+      @output_mutex.synchronize do
+        puts "#{\"\\e[93m\"}📋 Creating execution plan...#{\"\\e[0m\"}"
+      end
+      
+      plan = @planning_agent.create_plan(command[:input], {
+        available_tools: @tool_manager&.list_available_tools || [],
+        provider: command[:provider],
+        model: command[:model]
+      })
+      
+      # Show plan summary
+      @output_mutex.synchronize do
+        puts "#{\"\\e[92m\"}📊 Execution Plan:#{\"\\e[0m\"}"
+        puts "  Objective: #{plan['objective']}"
+        puts "  Phases: #{plan['phases'].size}"
+        total_tasks = plan['phases'].sum { |p| p['tasks'].size }
+        puts "  Total Tasks: #{total_tasks}"
+        puts
+      end
+      
+      # Execute plan phases
+      plan['phases'].each_with_index do |phase, phase_idx|
+        @output_mutex.synchronize do
+          puts "#{\"\\e[94m\"}Phase #{phase_idx + 1}: #{phase['name']}#{\"\\e[0m\"}"
+        end
+        
+        # Execute tasks in phase
+        phase['tasks'].each do |task|
+          execute_planned_task(command_id, task, command)
+        end
+      end
+      
+      # Mark command as completed
+      @command_mutex.synchronize do
+        command[:status] = :completed
+        command[:completed_at] = Time.now
+      end
+      
+      show_completion(command_id)
+    end
+    
+    def execute_planned_task(command_id, task, command)
+      @output_mutex.synchronize do
+        puts "  → Executing: #{task['name']}"
+      end
+      
+      # Create conversation for this task
+      task_conversation = @conversation.dup
+      task_conversation << { role: 'user', content: task['description'] }
+      
+      # Use appropriate provider for task
+      provider_clone = create_provider_clone(command[:provider], command[:model])
+      
+      begin
+        response = provider_clone.chat(task_conversation, @options)
+        
+        # Add to conversation
+        @conversation << { role: 'user', content: task['description'] }
+        @conversation << { role: 'assistant', content: response }
+        
+        @output_mutex.synchronize do
+          puts "    ✓ Completed: #{task['name']}"
+        end
+      rescue => e
+        @output_mutex.synchronize do
+          puts "    ✗ Failed: #{e.message}"
+        end
+      end
+    end
+    
+    def format_plan(plan)
+      output = []
+      output << "📋 Execution Plan"
+      output << "━" * 60
+      output << "Objective: #{plan['objective']}"
+      output << "Duration: #{plan['estimated_duration']}"
+      output << ""
+      
+      plan['phases'].each_with_index do |phase, idx|
+        output << "Phase #{idx + 1}: #{phase['name']}"
+        output << "  #{phase['description']}"
+        output << ""
+        
+        phase['tasks'].each do |task|
+          output << "  • #{task['name']}"
+          output << "    #{task['description']}"
+          output << "    Duration: #{task['estimated_duration']}"
+          if task['dependencies'].any?
+            output << "    Dependencies: #{task['dependencies'].join(', ')}"
+          end
+          output << ""
+        end
+      end
+      
+      if plan['risks'] && plan['risks'].any?
+        output << "⚠️  Risks:"
+        plan['risks'].each do |risk|
+          output << "  • #{risk['description']} (#{risk['probability']}/#{risk['impact']})"
+          output << "    Mitigation: #{risk['mitigation']}"
+        end
+      end
+      
+      output.join("\n")
     end
     
     def cleanup
