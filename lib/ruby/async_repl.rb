@@ -8,6 +8,8 @@ require_relative 'planning_agent'
 require_relative 'task_analyzer'
 require_relative 'workspace_authenticator'
 require_relative 'plan_visualizer'
+require_relative 'conversation_manager'
+require_relative 'cost_tracker'
 
 module Lantae
   class AsyncREPL
@@ -36,6 +38,14 @@ module Lantae
       @task_analyzer = TaskAnalyzer.new
       @planning_agent = PlanningAgent.new(provider_manager, options)
       @planning_threshold = options[:planning_threshold] || 3.0
+      
+      # Conversation management
+      @conversation_manager = ConversationManager.new
+      @auto_save_enabled = options[:auto_save] != false
+      
+      # Cost tracking
+      @cost_tracker = CostTracker.new
+      @track_costs = options[:track_costs] != false
     end
     
     def set_extra_managers(managers)
@@ -332,6 +342,8 @@ module Lantae
             /plans               - List saved plans
             /graph <id>          - Show ASCII graph for a plan
             /auto                - Toggle automatic planning for complex tasks
+            /conversation <cmd>  - Manage conversations (save, load, list, search, export)
+            /cost <cmd>          - Cost tracking and budget management
             /help                - Show this help
             
           Regular Commands:
@@ -377,6 +389,12 @@ module Lantae
       when 'auto'
         toggle_auto_planning(command_id)
         
+      when 'conversation'
+        handle_conversation_command(command_id, args)
+        
+      when 'cost'
+        handle_cost_command(command_id, args)
+        
       else
         # Command not handled by async REPL
         add_command_output(command_id, "Unknown command: /#{cmd}. Use /help for available commands.")
@@ -411,9 +429,31 @@ module Lantae
         # Get response from AI
         response = provider_clone.chat(command_conversation, @options)
         
+        # Track costs if enabled
+        if @track_costs
+          input_tokens = estimate_tokens(command[:input])
+          output_tokens = estimate_tokens(response)
+          
+          cost_info = @cost_tracker.track_usage(
+            command[:provider], 
+            command[:model], 
+            input_tokens, 
+            output_tokens,
+            { command_id: command_id, workspace: @options[:workspace] }
+          )
+          
+          # Store cost info in command
+          command[:cost_info] = cost_info
+        end
+        
         # Add to conversation history
         @conversation << { role: 'user', content: command[:input] }
         @conversation << { role: 'assistant', content: response }
+        
+        # Auto-save conversation if enabled
+        if @auto_save_enabled
+          @conversation_manager.auto_save(@conversation)
+        end
         
         # Format and store output
         formatted_response = Lantae::ResponseFormatter.format_response(response, 
@@ -575,7 +615,7 @@ module Lantae
     
     def setup_autocomplete
       # Basic autocomplete for slash commands
-      commands = %w[status cancel clear model provider models side login workspace plan execute plans graph auto help]
+      commands = %w[status cancel clear model provider models side login workspace plan execute plans graph auto conversation cost help]
       
       comp = proc do |input|
         if input.start_with?('/')
@@ -722,7 +762,7 @@ module Lantae
       
       # Create plan
       @output_mutex.synchronize do
-        puts "#{\"\\e[93m\"}📋 Creating execution plan...#{\"\\e[0m\"}"
+        puts "\e[93m📋 Creating execution plan...\e[0m"
       end
       
       plan = @planning_agent.create_plan(command[:input], {
@@ -733,7 +773,7 @@ module Lantae
       
       # Show plan visualization
       @output_mutex.synchronize do
-        puts "#{\"\\e[92m\"}📊 Execution Plan:#{\"\\e[0m\"}"
+        puts "\e[92m📊 Execution Plan:\e[0m"
         puts
         
         # Generate ASCII graph
@@ -745,7 +785,7 @@ module Lantae
       # Execute plan phases
       plan['phases'].each_with_index do |phase, phase_idx|
         @output_mutex.synchronize do
-          puts "#{\"\\e[94m\"}Phase #{phase_idx + 1}: #{phase['name']}#{\"\\e[0m\"}"
+          puts "\e[94mPhase #{phase_idx + 1}: #{phase['name']}\e[0m"
         end
         
         # Execute tasks in phase
@@ -957,19 +997,19 @@ module Lantae
     
     def execute_plan_phases(command_id, plan)
       @output_mutex.synchronize do
-        puts "\n#{\"\\e[92m\"}🚀 Executing Plan#{\"\\e[0m\"}"
+        puts "\n\e[92m🚀 Executing Plan\e[0m"
         puts
         
         # Show mini visualization for execution
-        puts "#{\"\\e[94m\"}📋 #{plan['objective']}#{\"\\e[0m\"}"
-        puts "#{\"\\e[90m\"}Phases: #{plan['phases'].size} | Tasks: #{plan['phases'].sum { |p| p['tasks']&.size || 0 }}#{\"\\e[0m\"}"
+        puts "\e[94m📋 #{plan['objective']}\e[0m"
+        puts "\e[90mPhases: #{plan['phases'].size} | Tasks: #{plan['phases'].sum { |p| p['tasks']&.size || 0 }}\e[0m"
         puts "━" * 80
         puts
       end
       
       plan['phases'].each_with_index do |phase, phase_idx|
         @output_mutex.synchronize do
-          puts "#{\"\\e[94m\"}Phase #{phase_idx + 1}: #{phase['name']}#{\"\\e[0m\"}"
+          puts "\e[94mPhase #{phase_idx + 1}: #{phase['name']}\e[0m"
         end
         
         # Check if tasks can run in parallel
@@ -1052,6 +1092,472 @@ module Lantae
         File.write(plan_file, JSON.pretty_generate(plan))
       rescue JSON::ParserError
         # Ignore
+      end
+    end
+    
+    def handle_conversation_command(command_id, args)
+      parts = args.strip.split(' ', 2)
+      subcommand = parts[0]
+      subargs = parts[1] || ''
+      
+      case subcommand
+      when 'save'
+        handle_conversation_save(command_id, subargs)
+      when 'load'
+        handle_conversation_load(command_id, subargs)
+      when 'list'
+        handle_conversation_list(command_id)
+      when 'search'
+        handle_conversation_search(command_id, subargs)
+      when 'export'
+        handle_conversation_export(command_id, subargs)
+      when 'delete'
+        handle_conversation_delete(command_id, subargs)
+      when 'stats'
+        handle_conversation_stats(command_id, subargs)
+      else
+        show_conversation_help(command_id)
+      end
+    end
+    
+    def handle_conversation_save(command_id, name)
+      if name.empty?
+        name = "session_#{Time.now.strftime('%Y%m%d_%H%M%S')}"
+      end
+      
+      if @conversation.empty?
+        add_command_output(command_id, "No conversation to save")
+        return
+      end
+      
+      metadata = {
+        provider: @provider_manager.get_provider_info[:provider],
+        model: @provider_manager.get_provider_info[:model],
+        workspace: @options[:workspace]
+      }
+      
+      file_path = @conversation_manager.save_conversation(name, @conversation, metadata)
+      add_command_output(command_id, "✅ Conversation saved as '#{name}'")
+      add_command_output(command_id, "📁 File: #{file_path}")
+    end
+    
+    def handle_conversation_load(command_id, name)
+      if name.empty?
+        add_command_output(command_id, "Usage: /conversation load <name>")
+        return
+      end
+      
+      begin
+        result = @conversation_manager.load_conversation(name)
+        @conversation = result[:conversation]
+        add_command_output(command_id, "✅ Loaded conversation '#{name}'")
+        add_command_output(command_id, "📊 Messages: #{@conversation.size}")
+        
+        # Show conversation summary
+        if result[:metadata]
+          add_command_output(command_id, "🕒 Created: #{result[:metadata][:timestamp]}")
+          if result[:metadata][:message_count]
+            add_command_output(command_id, "💬 Messages: #{result[:metadata][:message_count]}")
+          end
+        end
+      rescue => e
+        add_command_output(command_id, "❌ Failed to load conversation: #{e.message}")
+      end
+    end
+    
+    def handle_conversation_list(command_id)
+      conversations = @conversation_manager.list_conversations
+      
+      if conversations.empty?
+        add_command_output(command_id, "No saved conversations found")
+        return
+      end
+      
+      output = []
+      output << "📚 Saved Conversations"
+      output << "━" * 60
+      
+      conversations.each do |conv|
+        name = conv[:name]
+        summary = conv[:summary] || "No summary"
+        timestamp = conv[:timestamp] ? Time.parse(conv[:timestamp]).strftime('%m/%d %H:%M') : 'Unknown'
+        message_count = conv[:message_count] || 0
+        
+        output << "📝 #{name}"
+        output << "   #{summary}"
+        output << "   🕒 #{timestamp} | 💬 #{message_count} messages"
+        output << ""
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def handle_conversation_search(command_id, query)
+      if query.empty?
+        add_command_output(command_id, "Usage: /conversation search <query>")
+        return
+      end
+      
+      results = @conversation_manager.search_conversations(query)
+      
+      if results.empty?
+        add_command_output(command_id, "No conversations found matching '#{query}'")
+        return
+      end
+      
+      output = []
+      output << "🔍 Search Results for '#{query}'"
+      output << "━" * 60
+      
+      results.each do |conv|
+        name = conv[:name]
+        summary = conv[:summary] || "No summary"
+        timestamp = conv[:timestamp] ? Time.parse(conv[:timestamp]).strftime('%m/%d %H:%M') : 'Unknown'
+        message_count = conv[:message_count] || 0
+        
+        output << "📝 #{name}"
+        output << "   #{summary}"
+        output << "   🕒 #{timestamp} | 💬 #{message_count} messages"
+        output << ""
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def handle_conversation_export(command_id, args)
+      parts = args.split(' ', 2)
+      name = parts[0]
+      format = parts[1] || 'markdown'
+      
+      if name.empty?
+        add_command_output(command_id, "Usage: /conversation export <name> [format]")
+        add_command_output(command_id, "Formats: markdown (default), json, html")
+        return
+      end
+      
+      begin
+        exported = @conversation_manager.export_conversation(name, format.to_sym)
+        export_file = "#{name}_export.#{format}"
+        File.write(export_file, exported)
+        
+        add_command_output(command_id, "✅ Conversation exported")
+        add_command_output(command_id, "📁 File: #{export_file}")
+        add_command_output(command_id, "📄 Format: #{format}")
+      rescue => e
+        add_command_output(command_id, "❌ Export failed: #{e.message}")
+      end
+    end
+    
+    def handle_conversation_delete(command_id, name)
+      if name.empty?
+        add_command_output(command_id, "Usage: /conversation delete <name>")
+        return
+      end
+      
+      if @conversation_manager.delete_conversation(name)
+        add_command_output(command_id, "✅ Conversation '#{name}' deleted")
+      else
+        add_command_output(command_id, "❌ Conversation '#{name}' not found")
+      end
+    end
+    
+    def handle_conversation_stats(command_id, name)
+      if name.empty?
+        add_command_output(command_id, "Usage: /conversation stats <name>")
+        return
+      end
+      
+      begin
+        stats = @conversation_manager.get_conversation_stats(name)
+        
+        output = []
+        output << "📊 Conversation Stats: #{name}"
+        output << "━" * 60
+        output << "💬 Total Messages: #{stats[:message_count]}"
+        output << "👤 User Messages: #{stats[:user_messages]}"
+        output << "🤖 Assistant Messages: #{stats[:assistant_messages]}"
+        output << "📏 Total Length: #{stats[:total_length]} characters"
+        output << "📐 Average Message Length: #{stats[:average_message_length].round(1)} characters"
+        output << "🕒 Created: #{stats[:created_at]}"
+        output << "📝 Last Modified: #{stats[:last_modified]}"
+        
+        if stats[:providers_used].any?
+          output << "🔧 Providers Used: #{stats[:providers_used].join(', ')}"
+        end
+        
+        add_command_output(command_id, output.join("\n"))
+      rescue => e
+        add_command_output(command_id, "❌ Failed to get stats: #{e.message}")
+      end
+    end
+    
+    def show_conversation_help(command_id)
+      help_text = <<~HELP
+        Conversation Management Commands:
+          /conversation save [name]     - Save current conversation
+          /conversation load <name>     - Load a saved conversation
+          /conversation list            - List all saved conversations
+          /conversation search <query>  - Search conversations
+          /conversation export <name> [format] - Export (markdown, json, html)
+          /conversation delete <name>   - Delete a conversation
+          /conversation stats <name>    - Show conversation statistics
+          
+        Examples:
+          /conversation save my_session
+          /conversation load my_session
+          /conversation search "planning"
+          /conversation export my_session markdown
+      HELP
+      
+      add_command_output(command_id, help_text)
+    end
+    
+    def handle_cost_command(command_id, args)
+      parts = args.strip.split(' ', 2)
+      subcommand = parts[0]
+      subargs = parts[1] || ''
+      
+      case subcommand
+      when 'session'
+        show_session_costs(command_id)
+      when 'daily'
+        show_daily_costs(command_id)
+      when 'weekly'
+        show_weekly_costs(command_id)
+      when 'monthly'
+        show_monthly_costs(command_id)
+      when 'budget'
+        handle_budget_command(command_id, subargs)
+      when 'export'
+        handle_cost_export(command_id, subargs)
+      when 'status'
+        show_cost_status(command_id)
+      else
+        show_cost_help(command_id)
+      end
+    end
+    
+    def show_session_costs(command_id)
+      summary = @cost_tracker.get_session_summary
+      
+      output = []
+      output << "💰 Current Session Costs"
+      output << "━" * 60
+      output << "⏱️  Duration: #{format_duration(summary[:duration])}"
+      output << "💸 Total Cost: $#{sprintf('%.4f', summary[:total_cost])}"
+      output << ""
+      
+      if summary[:providers].any?
+        summary[:providers].each do |provider, data|
+          output << "🔧 #{provider.capitalize}"
+          output << "   Cost: $#{sprintf('%.4f', data[:total_cost])}"
+          output << "   Requests: #{data[:total_requests]}"
+          
+          data[:models].each do |model, usage|
+            output << "     📱 #{model}"
+            output << "        Cost: $#{sprintf('%.4f', usage[:cost])}"
+            output << "        Tokens: #{usage[:input_tokens] + usage[:output_tokens]}"
+            output << "        Requests: #{usage[:requests]}"
+          end
+          output << ""
+        end
+      else
+        output << "No API usage in this session"
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def show_daily_costs(command_id)
+      report = @cost_tracker.get_usage_report(:daily)
+      
+      output = []
+      output << "📅 Daily Cost Report"
+      output << "━" * 60
+      output << "📆 Date: #{report[:date]}"
+      output << "💸 Total Cost: $#{sprintf('%.4f', report[:total_cost])}"
+      output << "📊 Total Requests: #{report[:total_requests]}"
+      output << ""
+      
+      if report[:providers].any?
+        report[:providers].each do |provider, data|
+          output << "🔧 #{provider.capitalize}"
+          output << "   Cost: $#{sprintf('%.4f', data[:cost])}"
+          output << "   Requests: #{data[:requests]}"
+          output << "   Input Tokens: #{data[:input_tokens]}"
+          output << "   Output Tokens: #{data[:output_tokens]}"
+          output << ""
+        end
+      else
+        output << "No usage today"
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def show_weekly_costs(command_id)
+      report = @cost_tracker.get_usage_report(:weekly)
+      
+      output = []
+      output << "📅 Weekly Cost Report"
+      output << "━" * 60
+      output << "📆 Period: #{report[:period]}"
+      output << "💸 Total Cost: $#{sprintf('%.4f', report[:total_cost])}"
+      output << ""
+      output << "Daily Breakdown:"
+      
+      report[:daily_breakdown].each do |day|
+        output << "  #{day[:date]}: $#{sprintf('%.4f', day[:cost])}"
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def show_monthly_costs(command_id)
+      report = @cost_tracker.get_usage_report(:monthly)
+      
+      output = []
+      output << "📅 Monthly Cost Report"
+      output << "━" * 60
+      output << "📆 Period: #{report[:period]}"
+      output << "💸 Total Cost: $#{sprintf('%.4f', report[:total_cost])}"
+      output << "📊 Daily Average: $#{sprintf('%.4f', report[:daily_average])}"
+      
+      if report[:peak_day]
+        output << "📈 Peak Day: #{report[:peak_day][:date]} ($#{sprintf('%.4f', report[:peak_day][:cost])})"
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def handle_budget_command(command_id, args)
+      parts = args.split(' ')
+      
+      if parts.empty?
+        # Show current budgets
+        show_budget_status(command_id)
+      elsif parts[0] == 'set' && parts.size >= 3
+        # Set budget: /cost budget set <provider> <amount>
+        provider = parts[1]
+        amount = parts[2].to_f
+        
+        @cost_tracker.set_budget_limit(provider, amount, :daily)
+        add_command_output(command_id, "✅ Set daily budget for #{provider}: $#{amount}")
+      else
+        add_command_output(command_id, "Usage: /cost budget [set <provider> <amount>]")
+      end
+    end
+    
+    def show_budget_status(command_id)
+      providers = ['anthropic', 'openai', 'gemini']
+      
+      output = []
+      output << "💰 Budget Status"
+      output << "━" * 60
+      
+      providers.each do |provider|
+        status = @cost_tracker.get_budget_status(provider)
+        
+        if status
+          percentage = status[:percentage]
+          color = case percentage
+          when 0...75 then "🟢"
+          when 75...90 then "🟡"
+          else "🔴"
+          end
+          
+          output << "#{color} #{provider.capitalize}"
+          output << "   Budget: $#{sprintf('%.2f', status[:limit])}"
+          output << "   Spent: $#{sprintf('%.4f', status[:spent])}"
+          output << "   Remaining: $#{sprintf('%.4f', status[:remaining])}"
+          output << "   Usage: #{percentage}%"
+        else
+          output << "⚪ #{provider.capitalize}: No budget set"
+        end
+        output << ""
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def handle_cost_export(command_id, format)
+      format = format.empty? ? 'csv' : format.downcase
+      
+      begin
+        data = @cost_tracker.export_usage_data(format.to_sym)
+        filename = "lantae_costs_#{Time.now.strftime('%Y%m%d')}.#{format}"
+        File.write(filename, data)
+        
+        add_command_output(command_id, "✅ Cost data exported")
+        add_command_output(command_id, "📁 File: #{filename}")
+      rescue => e
+        add_command_output(command_id, "❌ Export failed: #{e.message}")
+      end
+    end
+    
+    def show_cost_status(command_id)
+      session_summary = @cost_tracker.get_session_summary
+      daily_report = @cost_tracker.get_usage_report(:daily)
+      
+      output = []
+      output << "💰 Cost Overview"
+      output << "━" * 60
+      output << "📊 Session: $#{sprintf('%.4f', session_summary[:total_cost])}"
+      output << "📅 Today: $#{sprintf('%.4f', daily_report[:total_cost])}"
+      output << ""
+      
+      # Show budget warnings
+      ['anthropic', 'openai', 'gemini'].each do |provider|
+        status = @cost_tracker.get_budget_status(provider)
+        next unless status
+        
+        if status[:percentage] >= 90
+          output << "🔴 #{provider.capitalize}: #{status[:percentage]}% of budget used!"
+        elsif status[:percentage] >= 75
+          output << "🟡 #{provider.capitalize}: #{status[:percentage]}% of budget used"
+        end
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def show_cost_help(command_id)
+      help_text = <<~HELP
+        Cost Tracking Commands:
+          /cost session           - Show current session costs
+          /cost daily             - Show today's usage
+          /cost weekly            - Show weekly usage
+          /cost monthly           - Show monthly usage
+          /cost status            - Show cost overview and budget alerts
+          /cost budget            - Show budget status
+          /cost budget set <provider> <amount> - Set daily budget
+          /cost export [format]   - Export usage data (csv, json)
+          
+        Examples:
+          /cost session
+          /cost budget set anthropic 5.00
+          /cost export csv
+      HELP
+      
+      add_command_output(command_id, help_text)
+    end
+    
+    def estimate_tokens(text)
+      # Simple estimation: roughly 4 characters per token
+      (text.length / 4.0).round
+    end
+    
+    def format_duration(seconds)
+      hours = seconds / 3600
+      minutes = (seconds % 3600) / 60
+      secs = seconds % 60
+      
+      if hours > 0
+        sprintf('%dh %dm %ds', hours, minutes, secs)
+      elsif minutes > 0
+        sprintf('%dm %ds', minutes, secs)
+      else
+        sprintf('%ds', secs)
       end
     end
     
