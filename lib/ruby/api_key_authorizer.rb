@@ -1,5 +1,6 @@
 require 'net/http'
 require 'json'
+require_relative 'oauth_authenticator'
 
 module Lantae
   class APIKeyAuthorizer
@@ -30,22 +31,33 @@ module Lantae
       puts
       puts "To use #{provider_name}, you need an API key."
       puts
-      puts "You have two options:"
+      puts "You have three options:"
       puts
-      puts "1. \e[32mAutomatic\e[0m: Open #{provider_name} Console in your browser"
-      puts "   We'll help you get a key and save it automatically"
+      puts "1. \e[32mOAuth-Style\e[0m: Modern browser-based authentication"
+      puts "   Like Claude Code - opens browser with guided setup"
       puts
-      puts "2. \e[33mManual\e[0m: Enter an existing API key"
+      puts "2. \e[36mQuick Setup\e[0m: Traditional browser method"
+      puts "   Opens #{provider_name} Console and waits for key input"
+      puts
+      puts "3. \e[33mManual\e[0m: Enter an existing API key"
       puts "   If you already have one from #{console_url}"
       puts
-      print "Choose an option (1 or 2): "
+      print "Choose an option (1, 2, or 3): "
       
       choice = gets.chomp
       
       case choice
       when '1'
-        authorize_via_browser(provider)
+        # OAuth-style authentication like Claude Code
+        if OAuthAuthenticator::OAUTH_CONFIGS.key?(provider)
+          OAuthAuthenticator.authenticate(provider)
+        else
+          puts "\n⚠️  OAuth-style auth not available for #{provider_name}. Using quick setup..."
+          authorize_via_browser(provider)
+        end
       when '2'
+        authorize_via_browser(provider)
+      when '3'
         manual_key_entry(provider)
       else
         puts "\n❌ Invalid choice. Please run lantae again."
@@ -56,57 +68,6 @@ module Lantae
     # Legacy method for backward compatibility
     def self.request_anthropic_key
       request_api_key('anthropic')
-    end
-    
-    private
-    
-    def self.authorize_via_browser(provider)
-      provider_name = provider.capitalize
-      console_url = CONSOLE_URLS[provider]
-      
-      puts "\n🌐 Opening #{provider_name} Console..."
-      puts "Please follow these steps:"
-      puts
-      puts "1. Sign in or create an account"
-      puts "2. Navigate to API Keys section" 
-      puts "3. Create a new API key"
-      
-      if KEY_PREFIXES[provider]
-        puts "4. Copy the key (it starts with '#{KEY_PREFIXES[provider]}')"
-      else
-        puts "4. Copy the key"
-      end
-      puts
-      
-      # Try to open browser
-      open_browser(console_url)
-      
-      puts "\n⏳ Waiting for you to copy your API key..."
-      puts
-      print "Paste your API key here: "
-      
-      # Disable echo for security with proper cleanup
-      begin
-        system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
-        api_key = gets.chomp
-      ensure
-        # Always restore echo, even if interrupted
-        system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
-      end
-      puts # New line after hidden input
-      
-      if validate_api_key(provider, api_key)
-        save_api_key(provider, api_key)
-        puts "\n✅ API key saved successfully!"
-        api_key
-      else
-        if KEY_PREFIXES[provider]
-          puts "\n❌ Invalid API key format. Keys should start with '#{KEY_PREFIXES[provider]}'"
-        else
-          puts "\n❌ Invalid API key format."
-        end
-        nil
-      end
     end
     
     def self.manual_key_entry(provider)
@@ -179,6 +140,57 @@ module Lantae
       
       # Add to shell profile if not already there
       add_to_shell_profile
+    end
+    
+    private
+    
+    def self.authorize_via_browser(provider)
+      provider_name = provider.capitalize
+      console_url = CONSOLE_URLS[provider]
+      
+      puts "\n🌐 Opening #{provider_name} Console..."
+      puts "Please follow these steps:"
+      puts
+      puts "1. Sign in or create an account"
+      puts "2. Navigate to API Keys section" 
+      puts "3. Create a new API key"
+      
+      if KEY_PREFIXES[provider]
+        puts "4. Copy the key (it starts with '#{KEY_PREFIXES[provider]}')"
+      else
+        puts "4. Copy the key"
+      end
+      puts
+      
+      # Try to open browser
+      open_browser(console_url)
+      
+      puts "\n⏳ Waiting for you to copy your API key..."
+      puts
+      print "Paste your API key here: "
+      
+      # Disable echo for security with proper cleanup
+      begin
+        system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
+        api_key = gets.chomp
+      ensure
+        # Always restore echo, even if interrupted
+        system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+      end
+      puts # New line after hidden input
+      
+      if validate_api_key(provider, api_key)
+        save_api_key(provider, api_key)
+        puts "\n✅ API key saved successfully!"
+        api_key
+      else
+        if KEY_PREFIXES[provider]
+          puts "\n❌ Invalid API key format. Keys should start with '#{KEY_PREFIXES[provider]}'"
+        else
+          puts "\n❌ Invalid API key format."
+        end
+        nil
+      end
     end
     
     def self.add_to_shell_profile
