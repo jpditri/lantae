@@ -18,7 +18,16 @@
            #:progress-bar
            #:spinner
            #:clear-line
-           #:move-cursor))
+           #:move-cursor
+           #:clear-screen
+           #:print-banner
+           #:print-section
+           #:print-item
+           #:print-success
+           #:print-error
+           #:print-warning
+           #:print-info
+           #:draw-box))
 
 (in-package :lantae-colors)
 

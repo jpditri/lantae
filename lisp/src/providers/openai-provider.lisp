@@ -13,7 +13,8 @@
            #:openai-chat
            #:openai-stream
            #:openai-list-models
-           #:test-openai-connection))
+           #:test-openai-connection
+           #:openai-parse-stream-chunk))
 
 (in-package :lantae-providers-openai)
 

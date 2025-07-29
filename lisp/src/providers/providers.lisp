@@ -13,6 +13,13 @@
            #:register-provider
            #:get-provider
            #:list-providers
+           #:provider-available-p
+           #:validate-provider-switch
+           #:switch-provider
+           #:get-current-provider-name
+           #:get-provider-info
+           #:detect-available-providers
+           #:check-api-key
            #:provider-chat
            #:provider-stream
            #:provider-models
@@ -106,12 +113,55 @@
   (loop for name being the hash-keys of *provider-registry*
         collect name))
 
+(defun provider-available-p (name)
+  "Check if provider is available and registered"
+  (not (null (get-provider name))))
+
+(defun validate-provider-switch (provider-name)
+  "Validate if we can switch to the specified provider"
+  (cond
+    ((not (provider-available-p provider-name))
+     (values nil (format nil "Provider '~A' is not available. Available: ~{~A~^, ~}" 
+                        provider-name (list-providers))))
+    (t (values t nil))))
+
+(defun switch-provider (provider-name)
+  "Switch to the specified provider with validation"
+  (multiple-value-bind (valid-p error-msg) (validate-provider-switch provider-name)
+    (if valid-p
+        (progn
+          (setf *current-provider* (get-provider provider-name))
+          (values t (format nil "Switched to provider: ~A" provider-name)))
+        (values nil error-msg))))
+
+(defun get-current-provider-name ()
+  "Get the name of the current provider"
+  (when *current-provider*
+    (provider-name *current-provider*)))
+
+(defun get-provider-info (provider-name)
+  "Get detailed information about a provider"
+  (let ((provider (get-provider provider-name)))
+    (when provider
+      (list :name (provider-name provider)
+            :has-streaming (not (null (provider-stream-fn provider)))
+            :has-tools (not (null (provider-tool-manager provider)))
+            :config (provider-config provider)))))
+
 ;;; Provider operations
-(defun provider-chat (provider-name model messages &key (temperature 0.1))
+(defun provider-chat (provider-name model messages &key (temperature 0.1) tools)
   "Send chat request to provider"
   (let ((provider (get-provider provider-name)))
     (if provider
-        (funcall (provider-chat-fn provider) model messages temperature)
+        (if tools
+            ;; Handle function calling
+            (let ((formatted-tools (mapcar (lambda (tool)
+                                           (funcall (intern "FORMAT-TOOL-FOR-PROVIDER" :lantae-function-calling)
+                                                   provider-name tool))
+                                          tools)))
+              (funcall (provider-chat-fn provider) model messages temperature :tools formatted-tools))
+            ;; Regular chat without tools
+            (funcall (provider-chat-fn provider) model messages temperature))
         (failure (format nil "Provider ~A not found" provider-name)))))
 
 (defun provider-stream (provider-name model messages &key (temperature 0.1) callback)
@@ -256,50 +306,134 @@
    :config `(:api-key ,api-key)))
 
 ;;; Provider initialization
+(defun check-api-key (provider-name)
+  "Check if API key is available for provider"
+  (let ((env-var (format nil "~A_API_KEY" (string-upcase provider-name))))
+    (or #+sbcl (sb-ext:posix-getenv env-var)
+        #-sbcl nil
+        (get-secret-key provider-name))))
+
+(defun detect-available-providers ()
+  "Detect which providers can be initialized"
+  (let ((available '()))
+    ;; Ollama is always available (local)
+    (push '("ollama" . :local) available)
+    
+    ;; Check for cloud providers with API keys
+    (dolist (provider '("openai" "anthropic" "gemini" "mistral" "perplexity"))
+      (when (check-api-key provider)
+        (push (cons provider :cloud) available)))
+    
+    available))
+
 (defun initialize-providers ()
-  "Initialize all available providers"
-  ;; Load provider implementations if available
-  (handler-case
-      (progn
-        ;; Register Ollama provider (always available)
-        (when (find-package :lantae-providers-ollama)
-          (register-provider (funcall (intern "MAKE-OLLAMA-PROVIDER" :lantae-providers-ollama))))
-        
-        ;; Register OpenAI provider if package is loaded (even without API key for testing)
-        (when (find-package :lantae-providers-openai)
-          (handler-case
-              (register-provider (funcall (intern "MAKE-OPENAI-PROVIDER" :lantae-providers-openai)))
-            (error (e)
-              (format t "OpenAI provider not registered: ~A~%" e))))
-        
-        ;; Register Anthropic provider if package is loaded (even without API key for testing)
-        (when (find-package :lantae-providers-anthropic)
-          (handler-case
-              (register-provider (funcall (intern "MAKE-ANTHROPIC-PROVIDER" :lantae-providers-anthropic)))
-            (error (e)
-              (format t "Anthropic provider not registered: ~A~%" e))))
-        
-        ;; Register cloud providers if API keys are available
-        (let ((openai-key (or #+sbcl (sb-ext:posix-getenv "OPENAI_API_KEY")
-                              #-sbcl nil
-                              (get-secret-key "openai")))
-              (anthropic-key (or #+sbcl (sb-ext:posix-getenv "ANTHROPIC_API_KEY")
-                                #-sbcl nil
-                                (get-secret-key "anthropic"))))
+  "Initialize all available providers with better error handling"
+  (let ((initialized-count 0))
+    (handler-case
+        (progn
+          ;; Always register Ollama provider first
+          (when (find-package :lantae-providers-ollama)
+            (handler-case
+                (progn
+                  (register-provider (funcall (intern "MAKE-OLLAMA-PROVIDER" :lantae-providers-ollama)))
+                  (incf initialized-count)
+                  (format t "✓ Ollama provider registered~%"))
+              (error (e)
+                (format t "✗ Failed to register Ollama: ~A~%" e))))
           
-          (when (and openai-key (find-package :lantae-providers-openai))
-            (register-provider (funcall (intern "MAKE-OPENAI-PROVIDER" :lantae-providers-openai) 
-                                       :api-key openai-key)))
-          
-          (when (and anthropic-key (find-package :lantae-providers-anthropic))
-            (register-provider (funcall (intern "MAKE-ANTHROPIC-PROVIDER" :lantae-providers-anthropic)
-                                       :api-key anthropic-key)))
-          
-          (format t "Initialized ~A providers~%" (hash-table-count *provider-registry*))))
-    (error (e)
-      (format t "Error initializing providers: ~A~%" e)
-      ;; Still register placeholder providers
-      (register-provider (make-ollama-provider)))))
+          ;; Register cloud providers with proper API key detection
+          (let ((openai-key (check-api-key "openai"))
+                (anthropic-key (check-api-key "anthropic"))
+                (gemini-key (check-api-key "gemini"))
+                (mistral-key (check-api-key "mistral"))
+                (perplexity-key (check-api-key "perplexity"))
+                (aws-access-key (or #+sbcl (sb-ext:posix-getenv "AWS_ACCESS_KEY_ID")
+                                    #-sbcl nil)))
+            
+            ;; OpenAI provider
+            (when (find-package :lantae-providers-openai)
+              (if openai-key
+                  (handler-case
+                      (progn
+                        (register-provider (funcall (intern "MAKE-OPENAI-PROVIDER" :lantae-providers-openai) 
+                                                   :api-key openai-key))
+                        (incf initialized-count)
+                        (format t "✓ OpenAI provider registered~%"))
+                    (error (e)
+                      (format t "✗ OpenAI provider registration failed: ~A~%" e)))
+                  (format t "OpenAI provider not registered: OpenAI API key not found. Set OPENAI_API_KEY environment variable.~%")))
+            
+            ;; Anthropic provider
+            (when (find-package :lantae-providers-anthropic)
+              (if anthropic-key
+                  (handler-case
+                      (progn
+                        (register-provider (funcall (intern "MAKE-ANTHROPIC-PROVIDER" :lantae-providers-anthropic)
+                                                   :api-key anthropic-key))
+                        (incf initialized-count)
+                        (format t "✓ Anthropic provider registered~%"))
+                    (error (e)
+                      (format t "✗ Anthropic provider registration failed: ~A~%" e)))
+                  (format t "Anthropic provider not registered: Anthropic API key not found. Set ANTHROPIC_API_KEY environment variable.~%")))
+            
+            ;; Gemini provider
+            (when (find-package :lantae-providers-gemini)
+              (if gemini-key
+                  (handler-case
+                      (progn
+                        (register-provider (funcall (intern "MAKE-GEMINI-PROVIDER" :lantae-providers-gemini)
+                                                   :api-key gemini-key))
+                        (incf initialized-count)
+                        (format t "✓ Gemini provider registered~%"))
+                    (error (e)
+                      (format t "✗ Gemini provider registration failed: ~A~%" e)))
+                  (format t "Gemini provider not registered: Gemini API key not found. Set GEMINI_API_KEY environment variable.~%")))
+            
+            ;; Mistral provider
+            (when (find-package :lantae-providers-mistral)
+              (if mistral-key
+                  (handler-case
+                      (progn
+                        (register-provider (funcall (intern "MAKE-MISTRAL-PROVIDER" :lantae-providers-mistral)
+                                                   :api-key mistral-key))
+                        (incf initialized-count)
+                        (format t "✓ Mistral provider registered~%"))
+                    (error (e)
+                      (format t "✗ Mistral provider registration failed: ~A~%" e)))
+                  (format t "Mistral provider not registered: Mistral API key not found. Set MISTRAL_API_KEY environment variable.~%")))
+            
+            ;; Perplexity provider
+            (when (find-package :lantae-providers-perplexity)
+              (if perplexity-key
+                  (handler-case
+                      (progn
+                        (register-provider (funcall (intern "MAKE-PERPLEXITY-PROVIDER" :lantae-providers-perplexity)
+                                                   :api-key perplexity-key))
+                        (incf initialized-count)
+                        (format t "✓ Perplexity provider registered~%"))
+                    (error (e)
+                      (format t "✗ Perplexity provider registration failed: ~A~%" e)))
+                  (format t "Perplexity provider not registered: Perplexity API key not found. Set PERPLEXITY_API_KEY environment variable.~%")))
+            
+            ;; Bedrock provider
+            (when (find-package :lantae-providers-bedrock)
+              (if aws-access-key
+                  (handler-case
+                      (progn
+                        (register-provider (funcall (intern "MAKE-BEDROCK-PROVIDER" :lantae-providers-bedrock)))
+                        (incf initialized-count)
+                        (format t "✓ Bedrock provider registered~%"))
+                    (error (e)
+                      (format t "✗ Bedrock provider registration failed: ~A~%" e)))
+                  (format t "Bedrock provider not registered: AWS credentials not found. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.~%")))
+            
+            (format t "Initialized ~A providers~%" initialized-count)))
+      (error (e)
+        (format t "Error initializing providers: ~A~%" e)
+        ;; Ensure at least Ollama is available as fallback
+        (unless (get-provider "ollama")
+          (register-provider (make-ollama-provider))
+          (format t "Registered fallback Ollama provider~%"))))))
 
 (defun get-secret-key (provider)
   "Get API key from secrets manager (placeholder)"

@@ -29,6 +29,8 @@
 
 (in-package :lantae)
 
+;;; Enhanced commands loaded via load-lantae.lisp
+
 ;;; Version and constants
 (defparameter *version* "1.0.0-lisp")
 
@@ -65,23 +67,21 @@
 (defvar *command-registry* (make-hash-table :test 'equal))
 
 ;;; Initialize config properly
-(defun deep-copy-plist (plist)
-  "Deep copy a property list"
-  (when plist
-    (cons (first plist)
-          (if (listp (second plist))
-              (cons (deep-copy-plist (second plist))
-                    (deep-copy-plist (cddr plist)))
-              (cons (second plist)
-                    (deep-copy-plist (cddr plist)))))))
+(defun simple-copy-plist (plist)
+  "Simple copy of a property list"
+  (copy-list plist))
 
 (defun initialize-config ()
   "Initialize configuration from defaults"
-  (setf *current-config* (deep-copy-plist *default-config*)))
+  (setf *current-config* (simple-copy-plist *default-config*)))
 
 ;;; Configuration access functions
 (defun get-config (key &optional default)
   "Retrieve configuration value using dotted key notation"
+  ;; Initialize config if not already done
+  (unless *current-config*
+    (initialize-config))
+  
   (labels ((get-nested (keys plist)
              (if (null keys)
                  plist
@@ -322,6 +322,10 @@
   ;; Register default commands
   (when (find-package :lantae-commands)
     (funcall (intern "REGISTER-ALL-COMMANDS" :lantae-commands)))
+  
+  ;; Register enhanced commands for feature parity
+  (when (find-package :lantae-enhanced-commands)
+    (funcall (intern "REGISTER-ENHANCED-COMMANDS" :lantae-enhanced-commands)))
   
   ;; Setup signal handlers (if available)
   #+unix (setup-signal-handlers))

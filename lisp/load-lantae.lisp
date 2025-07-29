@@ -40,12 +40,20 @@
     "src/providers/ollama-provider.lisp"
     "src/providers/openai-provider.lisp"
     "src/providers/anthropic-provider.lisp"
+    "src/providers/gemini-provider.lisp"
+    "src/providers/mistral-provider.lisp"
+    "src/providers/perplexity-provider.lisp"
+    "src/providers/bedrock-provider.lisp"
+    
+    ;; Function calling (after providers)
+    "src/tools/function-calling.lisp"
     
     ;; Main entry point (before commands so package exists)
     "lantae.lisp"
     
     ;; CLI components (after main package)
-    "src/cli/commands.lisp"))
+    "src/cli/commands.lisp"
+    "src/cli/enhanced-commands.lisp"))
 
 ;;; Load modules
 (defun load-lantae-modules ()

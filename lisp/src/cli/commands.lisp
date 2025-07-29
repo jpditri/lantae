@@ -99,20 +99,35 @@
 (defun cmd-provider (args)
   "Switch provider or show current"
   (cond
-    ;; No args - show current
+    ;; No args - show current provider status
     ((null args)
-     (format t "Current provider: ~A~%" (lantae:get-config :provider))
-     (format t "Available providers: ~{~A~^, ~}~%" 
-             (lantae-providers:list-providers)))
+     (let ((current (lantae:get-config :provider))
+           (available (lantae-providers:list-providers)))
+       (format t "~%📡 Provider Status:~%")
+       (format t "  Current: ~A~%" current)
+       (format t "  Available: ~{~A~^, ~}~%" available)
+       
+       ;; Show provider details
+       (when available
+         (format t "~%Provider Details:~%")
+         (dolist (provider available)
+           (let ((info (lantae-providers:get-provider-info provider)))
+             (when info
+               (format t "  • ~A~A~A~%" 
+                       provider
+                       (if (getf info :has-streaming) " (Streaming)" "")
+                       (if (getf info :has-tools) " (Tools)" ""))))))))
     
-    ;; Switch provider
+    ;; Switch provider with validation
     (t
      (let ((provider-name (first args)))
-       (if (lantae-providers:get-provider provider-name)
-           (progn
-             (lantae:set-config :provider provider-name)
-             (format t "Switched to provider: ~A~%" provider-name))
-           (format t "Unknown provider: ~A~%" provider-name))))))
+       (multiple-value-bind (success-p message) 
+           (lantae-providers:switch-provider provider-name)
+         (if success-p
+             (progn
+               (lantae:set-config :provider provider-name)
+               (format t "✅ ~A~%" message))
+             (format t "❌ ~A~%" message)))))))
 
 (defun cmd-model (args)
   "Switch model or show current"
