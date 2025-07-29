@@ -283,9 +283,18 @@ module Lantae
           add_command_output(command_id, "Current provider: #{@provider_manager.get_provider_info[:provider]}")
         else
           provider, model = args.split(' ', 2)
-          @provider_manager.switch_provider(provider, model)
-          info = @provider_manager.get_provider_info
-          add_command_output(command_id, "Future commands will use: #{info[:provider]} (#{info[:model]})")
+          
+          # Check if provider needs API key authentication
+          if provider != 'ollama' && !has_api_key_for_provider?(provider)
+            add_command_output(command_id, "⚠️  Provider '#{provider}' requires API key setup.")
+            add_command_output(command_id, "Please exit async mode (type 'exit') and run:")
+            add_command_output(command_id, "  lantae --provider #{provider}")
+            add_command_output(command_id, "This will trigger the OAuth-style authentication flow.")
+          else
+            @provider_manager.switch_provider(provider, model)
+            info = @provider_manager.get_provider_info
+            add_command_output(command_id, "Future commands will use: #{info[:provider]} (#{info[:model]})")
+          end
         end
         
       when 'help'
@@ -524,6 +533,11 @@ module Lantae
       Readline.completion_append_character = ' '
     rescue
       # Ignore autocomplete setup errors
+    end
+    
+    def has_api_key_for_provider?(provider)
+      env_key = "#{provider.upcase}_API_KEY"
+      ENV[env_key] || File.exist?(File.expand_path('~/.lantae_env'))
     end
     
     def cleanup

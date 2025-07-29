@@ -2293,6 +2293,29 @@ def start_repl(options)
     puts "🧠 Intelligent routing enabled"
   end
   
+  # Check for API key requirements before starting async REPL
+  current_provider = provider_manager.get_provider_info[:provider]
+  if current_provider != 'ollama'
+    env_key = "#{current_provider.upcase}_API_KEY"
+    unless ENV[env_key] || File.exist?(File.expand_path('~/.lantae_env'))
+      if STDIN.tty?
+        puts "\n🔑 #{current_provider.capitalize} requires an API key for authentication."
+        puts "Let's set that up now...\n"
+        
+        api_key = Lantae::APIKeyAuthorizer.request_api_key(current_provider)
+        unless api_key
+          puts "\n⚠️  No API key configured. Switching to Ollama provider."
+          provider_manager.switch_provider('ollama')
+        end
+      else
+        puts "\n⚠️  #{current_provider.capitalize} requires API key setup but no interactive terminal detected."
+        puts "Please run interactively or set #{env_key} environment variable."
+        puts "Switching to Ollama provider for now.\n"
+        provider_manager.switch_provider('ollama')
+      end
+    end
+  end
+  
   # Always use async REPL
   async_repl = Lantae::AsyncREPL.new(provider_manager, tool_manager, options)
   

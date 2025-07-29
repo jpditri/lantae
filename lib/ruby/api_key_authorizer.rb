@@ -44,7 +44,7 @@ module Lantae
       puts
       print "Choose an option (1, 2, or 3): "
       
-      choice = gets.chomp
+      choice = gets&.chomp
       
       case choice
       when '1'
@@ -59,8 +59,11 @@ module Lantae
         authorize_via_browser(provider)
       when '3'
         manual_key_entry(provider)
+      when nil
+        puts "\n❌ No input received. Please run lantae interactively for API key setup."
+        nil
       else
-        puts "\n❌ Invalid choice. Please run lantae again."
+        puts "\n❌ Invalid choice '#{choice}'. Please run lantae again."
         nil
       end
     end
@@ -77,17 +80,20 @@ module Lantae
       # Disable echo for security with proper cleanup
       begin
         system("stty -echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
-        api_key = gets.chomp
+        api_key = gets&.chomp
       ensure
         # Always restore echo, even if interrupted
         system("stty echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
       end
       puts # New line after hidden input
       
-      if validate_api_key(provider, api_key)
+      if api_key && validate_api_key(provider, api_key)
         save_api_key(provider, api_key)
         puts "\n✅ API key saved successfully!"
         api_key
+      elsif api_key.nil?
+        puts "\n❌ No input received. Please run the command interactively."
+        nil
       else
         if KEY_PREFIXES[provider]
           puts "\n❌ Invalid API key format. Keys should start with '#{KEY_PREFIXES[provider]}'"
@@ -172,17 +178,20 @@ module Lantae
       # Disable echo for security with proper cleanup
       begin
         system("stty -echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
-        api_key = gets.chomp
+        api_key = gets&.chomp
       ensure
         # Always restore echo, even if interrupted
         system("stty echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
       end
       puts # New line after hidden input
       
-      if validate_api_key(provider, api_key)
+      if api_key && validate_api_key(provider, api_key)
         save_api_key(provider, api_key)
         puts "\n✅ API key saved successfully!"
         api_key
+      elsif api_key.nil?
+        puts "\n❌ No input received. Please run the command interactively."
+        nil
       else
         if KEY_PREFIXES[provider]
           puts "\n❌ Invalid API key format. Keys should start with '#{KEY_PREFIXES[provider]}'"
