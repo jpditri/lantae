@@ -2316,8 +2316,13 @@ def start_repl(options)
     end
   end
   
-  # Always use async REPL
-  async_repl = Lantae::AsyncREPL.new(provider_manager, tool_manager, options)
+  # Choose REPL based on UI mode
+  if options[:stable_ui]
+    require_relative '../lib/ruby/stable_async_repl'
+    async_repl = Lantae::StableAsyncREPL.new(provider_manager, tool_manager, options)
+  else
+    async_repl = Lantae::AsyncREPL.new(provider_manager, tool_manager, options)
+  end
   
   # Pass extra managers
   async_repl.set_extra_managers({
@@ -3276,6 +3281,7 @@ def main
     opts.on('--agent', 'Enable agent mode with task decomposition') { options[:agent_mode] = true }
     opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
     opts.on('--no-side-panel', 'Disable the side panel display') { options[:side_panel] = false }
+    opts.on('--stable-ui', 'Use stable UI mode with minimal redraws') { options[:stable_ui] = true }
     opts.on('--verbose', 'Show detailed model selection and system information') { options[:verbose] = true }
     opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }

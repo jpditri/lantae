@@ -268,15 +268,12 @@ module Lantae
         if args.empty?
           add_command_output(command_id, "Current model: #{@provider_manager.get_provider_info[:model]}")
         else
-          # Create a temporary provider manager for this command
-          temp_manager = @provider_manager.dup
-          temp_manager.current_model = args
-          info = temp_manager.get_provider_info
-          add_command_output(command_id, "Would use model: #{args} (command already uses: #{command[:model]})")
-          
           # Update the main provider manager for future commands
           @provider_manager.current_model = args
           add_command_output(command_id, "Future commands will use: #{args}")
+          
+          # Update options for side panel
+          @options[:model] = args
         end
         
       when 'provider'
@@ -288,13 +285,15 @@ module Lantae
           # Check if provider needs API key authentication
           if provider != 'ollama' && !has_api_key_for_provider?(provider)
             add_command_output(command_id, "⚠️  Provider '#{provider}' requires API key setup.")
-            add_command_output(command_id, "Please exit async mode (type 'exit') and run:")
-            add_command_output(command_id, "  lantae --provider #{provider}")
-            add_command_output(command_id, "This will trigger the OAuth-style authentication flow.")
+            add_command_output(command_id, "Please use: /login #{provider}")
           else
             @provider_manager.switch_provider(provider, model)
             info = @provider_manager.get_provider_info
             add_command_output(command_id, "Future commands will use: #{info[:provider]} (#{info[:model]})")
+            
+            # Update the options to reflect the change for side panel
+            @options[:provider] = info[:provider]
+            @options[:model] = info[:model]
           end
         end
         
@@ -373,9 +372,11 @@ module Lantae
         
         # Add side panel if enabled
         if @options[:side_panel]
+          # Use the current command's provider and model for accurate display
+          current_info = @provider_manager.get_provider_info
           side_content = Lantae::SidePanelManager.generate_side_content(
-            provider: @options[:provider],
-            model: @options[:model],
+            provider: command[:provider] || current_info[:provider],
+            model: command[:model] || current_info[:model],
             temperature: @options[:temperature],
             conversation: @conversation,
             tools_available: @tool_manager&.list_available_tools || []
