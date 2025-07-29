@@ -29,8 +29,12 @@ module Lantae
         @original_state[:readline_completion_append_character] = Readline.completion_append_character
         @original_state[:winch_handler] = Signal.trap('WINCH', 'IGNORE')
         
-        # Store terminal state
-        @original_state[:terminal_echo] = system('stty -a | grep -q "echo"')
+        # Store terminal state only if we're in a terminal
+        if STDIN.tty?
+          @original_state[:terminal_echo] = system('stty -a | grep -q "echo" 2>/dev/null')
+        else
+          @original_state[:terminal_echo] = false
+        end
       end
       
       def cleanup_on_exit
@@ -57,13 +61,16 @@ module Lantae
       end
       
       def restore_terminal_state
-        # Ensure terminal echo is restored
-        system('stty echo 2>/dev/null')
+        # Only run stty commands if we're in a terminal
+        if STDIN.tty?
+          # Ensure terminal echo is restored
+          system('stty echo 2>/dev/null')
+          
+          # Reset terminal to sane state
+          system('stty sane 2>/dev/null')
+        end
         
-        # Reset terminal to sane state
-        system('stty sane 2>/dev/null')
-        
-        # Clear any remaining terminal escape sequences
+        # Clear any remaining terminal escape sequences (works for all outputs)
         print "\e[0m" # Reset all formatting
         print "\e[?25h" # Show cursor
       rescue => e

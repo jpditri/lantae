@@ -6,6 +6,7 @@ require_relative 'gemini_provider'
 require_relative 'mistral_provider'
 require_relative 'perplexity_provider'
 require_relative 'bedrock_provider'
+require_relative '../default_model_selector'
 
 module Lantae
   module Providers
@@ -17,7 +18,8 @@ module Lantae
         @tool_manager = tool_manager
         @providers = {}
         @current_provider = 'ollama'
-        @current_model = 'cogito:latest'
+        # Use intelligent model selection for default
+        @current_model = DefaultModelSelector.get_default_model
         
         register_default_providers
       end

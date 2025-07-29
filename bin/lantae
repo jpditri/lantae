@@ -34,6 +34,7 @@ require_relative '../lib/ruby/intelligent_router'
 require_relative '../lib/ruby/planning_agent'
 require_relative '../lib/ruby/cleanup_handler'
 require_relative '../lib/ruby/side_panel_manager'
+require_relative '../lib/ruby/default_model_selector'
 
 VERSION = '1.0.0'
 
@@ -146,7 +147,7 @@ class ProviderManager
       'perplexity' => PerplexityProvider.new(secret_manager)
     }
     @current_provider = 'ollama'  # Default to Ollama
-    @current_model = 'qwen3:0.6b'  # Default Qwen3 model
+    @current_model = Lantae::DefaultModelSelector.get_default_model  # Dynamic default model
     
     # Set tool manager for all providers
     if @tool_manager
@@ -167,7 +168,7 @@ class ProviderManager
     else
       # Set default model for provider
       defaults = {
-        'ollama' => 'qwen3:0.6b',
+        'ollama' => Lantae::DefaultModelSelector.get_default_model,
         'openai' => 'gpt-4o',
         'anthropic' => 'claude-3-5-sonnet-20241022',
         'claude' => 'claude-3-5-sonnet-20241022',
@@ -2096,7 +2097,7 @@ def setup_autocomplete(provider_manager, tool_manager, mcp_manager = nil)
     models = provider_manager.list_models || []
     # Add some default models if list is empty
     if models.empty?
-      models = %w[qwen3:0.6b llama3:latest codellama:latest mistral:latest]
+      models = [Lantae::DefaultModelSelector.get_default_model, 'llama3.1:8b', 'codellama:7b', 'mistral:7b']
     end
   rescue => e
     # Fallback to default models if can't be fetched
@@ -3201,8 +3202,26 @@ def main
   # Register cleanup handlers early to ensure they run on exit
   Lantae::CleanupHandler.register_cleanup
   
+  # Get the best available default model from Ollama
+  default_model = Lantae::DefaultModelSelector.get_default_model
+  
+  # Show model selection info if verbose
+  if ENV['LANTAE_VERBOSE'] || ARGV.include?('--verbose')
+    validation = Lantae::DefaultModelSelector.validate_model(default_model)
+    puts "🤖 Selected default model: #{default_model}"
+    
+    unless validation[:valid]
+      puts "⚠️  Model '#{default_model}' may not be available locally."
+      puts "💡 You might want to run: ollama pull #{default_model}"
+      puts "📋 Available models: #{validation[:available].join(', ')}" if validation[:available].any?
+    else
+      puts "✅ Model confirmed available"
+    end
+    puts
+  end
+  
   options = {
-    model: 'qwen3:0.6b',
+    model: default_model,
     provider: 'ollama',
     formatted_output: true,  # Enable formatted responses by default
     url: 'http://localhost:11434',
@@ -3216,7 +3235,8 @@ def main
     mcp_config: nil,
     agent_mode: false,
     enable_lsp: false,
-    side_panel: true
+    side_panel: true,
+    verbose: false
   }
 
   OptionParser.new do |opts|
@@ -3233,6 +3253,7 @@ def main
     opts.on('--agent', 'Enable agent mode with task decomposition') { options[:agent_mode] = true }
     opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
     opts.on('--no-side-panel', 'Disable the side panel display') { options[:side_panel] = false }
+    opts.on('--verbose', 'Show detailed model selection and system information') { options[:verbose] = true }
     opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }
     opts.on('--enable-lsp', 'Enable LSP (Language Server Protocol) for code intelligence') { options[:enable_lsp] = true }

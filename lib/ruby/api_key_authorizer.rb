@@ -76,11 +76,11 @@ module Lantae
       
       # Disable echo for security with proper cleanup
       begin
-        system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
+        system("stty -echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
         api_key = gets.chomp
       ensure
         # Always restore echo, even if interrupted
-        system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+        system("stty echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
       end
       puts # New line after hidden input
       
@@ -171,11 +171,11 @@ module Lantae
       
       # Disable echo for security with proper cleanup
       begin
-        system("stty -echo") if RUBY_PLATFORM =~ /darwin|linux/
+        system("stty -echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
         api_key = gets.chomp
       ensure
         # Always restore echo, even if interrupted
-        system("stty echo") if RUBY_PLATFORM =~ /darwin|linux/
+        system("stty echo") if STDIN.tty? && RUBY_PLATFORM =~ /darwin|linux/
       end
       puts # New line after hidden input
       

@@ -3,20 +3,24 @@ module Lantae
     # Small, fast models in order of preference
     SMALL_MODELS = [
       'qwen2:0.5b',        # Very small Qwen2 model
+      'qwen2.5:1.5b',      # Qwen2.5 1.5B
       'tinyllama:1.1b',    # TinyLlama 1.1B
       'phi3:mini',         # Microsoft Phi-3 Mini (3.8B)
       'gemma:2b',          # Google Gemma 2B
       'llama3.2:1b',       # Llama 3.2 1B
       'llama3.2:3b',       # Llama 3.2 3B
+      'qwen2.5:3b',        # Qwen2.5 3B
     ].freeze
     
     # Fallback to popular models if no small ones available
     POPULAR_MODELS = [
+      'cogito:latest',     # Cogito reasoning model
       'llama3.1:8b',       # Llama 3.1 8B
       'llama3:8b',         # Llama 3 8B
       'mistral:7b',        # Mistral 7B
       'codellama:7b',      # CodeLlama 7B
       'qwen2:7b',          # Qwen2 7B
+      'qwen3:14b',         # Qwen3 14B  
       'phi3:14b',          # Phi-3 14B
       'gemma:7b',          # Gemma 7B
     ].freeze

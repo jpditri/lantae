@@ -1,4 +1,5 @@
 require_relative 'base_provider'
+require_relative '../default_model_selector'
 require 'net/http'
 require 'json'
 
@@ -6,7 +7,9 @@ module Lantae
   module Providers
     class OllamaProvider < BaseProvider
       def initialize(base_url = 'http://localhost:11434')
-        super('ollama', 'cogito:latest')
+        # Use intelligent model selection instead of hardcoded default
+        default_model = DefaultModelSelector.get_default_model(base_url)
+        super('ollama', default_model)
         @base_url = base_url
         @tool_manager = nil
       end
@@ -36,6 +39,14 @@ module Lantae
 
         begin
           response = send_request_with_spinner(http, request, options)
+          
+          # Handle model not found errors
+          if response.code == '404'
+            handle_model_not_found_error(model)
+          end
+          
+          handle_api_error(response, 'Ollama') unless response.code.start_with?('2')
+          
           data = JSON.parse(response.body)
           content = data['message']['content']
           
@@ -68,6 +79,26 @@ module Lantae
       end
 
       private
+      
+      def handle_model_not_found_error(model)
+        # Get model validation results with suggestions
+        validation = DefaultModelSelector.validate_model(model, @base_url)
+        
+        if validation[:suggested]
+          error_msg = "Model '#{model}' not found. Suggested alternative: #{validation[:suggested]}"
+          
+          if validation[:available] && validation[:available].any?
+            error_msg += "\n\nAvailable models: #{validation[:available].join(', ')}"
+          end
+          
+          error_msg += "\n\nTo pull a recommended model, run: ollama pull #{validation[:suggested]}"
+        else
+          error_msg = "Model '#{model}' not found and no models are available. Please install Ollama models first."
+          error_msg += "\n\nQuick start: ollama pull llama3.2:1b"
+        end
+        
+        raise error_msg
+      end
 
       def enhance_messages_with_tools(messages)
         enhanced_messages = messages.dup

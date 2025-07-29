@@ -364,7 +364,7 @@ module Lantae
             model: @options[:model],
             temperature: @options[:temperature],
             conversation: @conversation,
-            tools_available: @tool_manager&.available_tools || []
+            tools_available: @tool_manager&.list_tools || []
           )
           
           formatted_response = Lantae::ResponseFormatter.with_side_panel(formatted_response, side_content)
