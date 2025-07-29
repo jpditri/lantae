@@ -77,6 +77,23 @@ module Lantae
       def max_tokens
         8192 # Ollama supports larger contexts
       end
+      
+      def context_window
+        case @default_model
+        when /cogito/
+          32768
+        when /qwen/
+          32768
+        when /llama3/
+          8192
+        when /mistral/
+          32768
+        when /gemma/
+          8192
+        else
+          8192
+        end
+      end
 
       private
       

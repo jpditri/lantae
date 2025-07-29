@@ -145,6 +145,38 @@ module Lantae
       }
     end
     
+    def get_context_info(conversation, provider = nil)
+      return nil unless provider
+      
+      {
+        tokens_used: provider.calculate_context_usage(conversation),
+        context_window: provider.context_window,
+        remaining_tokens: provider.remaining_context(conversation),
+        percentage_used: provider.context_percentage_used(conversation)
+      }
+    end
+    
+    def format_context_display(context_info)
+      return "" unless context_info
+      
+      used = context_info[:tokens_used]
+      total = context_info[:context_window]
+      remaining = context_info[:remaining_tokens]
+      percentage = context_info[:percentage_used]
+      
+      # Color coding based on usage
+      color = case percentage
+              when 0..50
+                "\033[32m"  # Green
+              when 51..80
+                "\033[33m"  # Yellow
+              else
+                "\033[31m"  # Red
+              end
+      
+      "#{color}Context: #{used}/#{total} tokens (#{percentage}% used, #{remaining} remaining)\033[0m"
+    end
+    
     private
     
     def session_file_path(name)

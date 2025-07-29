@@ -293,7 +293,7 @@ remove_lantae() {
     local config_files=(
         ".env"
         "mcp_servers.yml"
-        "lantae.md"
+        "LANTAE.md"
         "install.log"
         "uninstall.log"
     )

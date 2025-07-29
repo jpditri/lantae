@@ -57,6 +57,19 @@ module Lantae
           4096
         end
       end
+      
+      def context_window
+        case @default_model
+        when /opus/
+          200000
+        when /sonnet/
+          200000
+        when /haiku/
+          200000
+        else
+          200000
+        end
+      end
 
       private
 

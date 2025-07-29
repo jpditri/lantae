@@ -57,6 +57,27 @@ module Lantae
           4096
         end
       end
+      
+      def context_window
+        case @default_model
+        when /o1-preview/
+          32768
+        when /o1-mini/
+          65536
+        when /gpt-4o/
+          128000
+        when /gpt-4-turbo/
+          128000
+        when /gpt-4/
+          8192
+        when /gpt-3.5-turbo-16k/
+          16384
+        when /gpt-3.5-turbo/
+          4096
+        else
+          4096
+        end
+      end
 
       private
 

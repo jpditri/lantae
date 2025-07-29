@@ -455,6 +455,12 @@ module Lantae
           @conversation_manager.auto_save(@conversation)
         end
         
+        # Get context information if conversation manager is available
+        context_info = nil
+        if @extra_managers[:conversation_manager]
+          context_info = @extra_managers[:conversation_manager].get_context_info(@conversation, provider_clone)
+        end
+        
         # Format and store output
         formatted_response = Lantae::ResponseFormatter.format_response(response, 
           boxed: false,
@@ -474,6 +480,12 @@ module Lantae
           )
           
           formatted_response = Lantae::ResponseFormatter.with_side_panel(formatted_response, side_content)
+        end
+        
+        # Add context information display if available
+        if context_info
+          context_display = @extra_managers[:conversation_manager].format_context_display(context_info)
+          formatted_response += "\n\n#{context_display}"
         end
         
         add_command_output(command_id, formatted_response)

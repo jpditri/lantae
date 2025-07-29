@@ -80,4 +80,93 @@ task :cost do
   sh './lantae cost'
 end
 
+# Validation and Tech Debt Tasks
+namespace :validate do
+  desc "Run all code validations (static, QA, dry-run)"
+  task :all do
+    require_relative 'lib/ruby/validation_engine'
+    engine = Lantae::ValidationEngine.new(verbose: true)
+    engine.run_all_validations
+  end
+
+  desc "Run static code analysis (RuboCop, security, complexity)"
+  task :static do
+    require_relative 'lib/ruby/validation_engine'
+    engine = Lantae::ValidationEngine.new(verbose: true)
+    engine.run_static_analysis
+  end
+
+  desc "Run QA checks (coverage, dead code, documentation)"
+  task :qa do
+    require_relative 'lib/ruby/validation_engine'
+    engine = Lantae::ValidationEngine.new(verbose: true)
+    engine.run_qa_checks
+  end
+
+  desc "Run dry-run validation (syntax, dependencies, smoke test)"
+  task :dry_run do
+    require_relative 'lib/ruby/validation_engine'
+    engine = Lantae::ValidationEngine.new(verbose: true)
+    engine.run_dry_run_validation
+  end
+
+  desc "Run validations and auto-fix issues where possible"
+  task :fix do
+    require_relative 'lib/ruby/validation_engine'
+    engine = Lantae::ValidationEngine.new(verbose: true, fix: true)
+    engine.run_all_validations
+  end
+end
+
+namespace :debt do
+  desc "Show tech debt summary"
+  task :summary do
+    ruby 'lib/ruby/debt_reporter.rb summary'
+  end
+
+  desc "Show detailed tech debt report"
+  task :report do
+    ruby 'lib/ruby/debt_reporter.rb report'
+  end
+
+  desc "Add manual tech debt item"
+  task :add, [:title, :description, :priority] do |t, args|
+    if args[:title].nil? || args[:description].nil?
+      puts "Usage: rake debt:add['Title','Description','priority']"
+      puts "Priority: critical, high, medium, low (default: medium)"
+      exit 1
+    end
+    
+    priority = args[:priority] || 'medium'
+    ruby "lib/ruby/debt_reporter.rb add '#{args[:title]}' '#{args[:description]}' #{priority}"
+  end
+
+  desc "Mark tech debt item as resolved"
+  task :resolve, [:id] do |t, args|
+    if args[:id].nil?
+      puts "Usage: rake debt:resolve[item_id]"
+      exit 1
+    end
+    
+    ruby "lib/ruby/debt_reporter.rb resolve #{args[:id]}"
+  end
+
+  desc "Generate tech debt HTML report"
+  task :html do
+    ruby 'lib/ruby/debt_reporter.rb html'
+  end
+
+  desc "Export tech debt to CSV"
+  task :csv do
+    ruby 'lib/ruby/debt_reporter.rb csv'
+  end
+end
+
+# Aliases for convenience
+desc "Run all validations (alias for validate:all)"
+task :validate => 'validate:all'
+
+desc "Show tech debt report (alias for debt:report)"
+task :debt => 'debt:report'
+
 task :default => :test

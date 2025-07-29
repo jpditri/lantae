@@ -177,7 +177,7 @@ module Lantae
     
     def plan_task(description)
       messages = [
-        { role: 'system', content: 'You are a planning specialist. Break down tasks into clear steps.' },
+        { role: 'system', content: build_system_message_with_context('You are a planning specialist. Break down tasks into clear steps.') },
         { role: 'user', content: "Create a plan for: #{description}" }
       ]
       
@@ -190,7 +190,7 @@ module Lantae
         @execution_engine.execute_task(task)
       else
         messages = [
-          { role: 'system', content: 'You are an execution specialist. Complete tasks efficiently.' },
+          { role: 'system', content: build_system_message_with_context('You are an execution specialist. Complete tasks efficiently.') },
           { role: 'user', content: "Execute: #{description}" }
         ]
         
@@ -200,7 +200,7 @@ module Lantae
     
     def review_task(description)
       messages = [
-        { role: 'system', content: 'You are a code reviewer. Review implementations for quality and correctness.' },
+        { role: 'system', content: build_system_message_with_context('You are a code reviewer. Review implementations for quality and correctness.') },
         { role: 'user', content: "Review: #{description}" }
       ]
       
@@ -212,6 +212,25 @@ module Lantae
       
       completed = @tasks.count { |t| t[:status] == :completed }
       (completed.to_f / @tasks.size * 100).round(2)
+    end
+    
+    def build_system_message_with_context(base_message)
+      lantae_context = read_lantae_context
+      if lantae_context
+        "#{base_message}\n\n#{lantae_context}"
+      else
+        base_message
+      end
+    end
+    
+    def read_lantae_context
+      lantae_file = File.expand_path('../../../LANTAE.md', __FILE__)
+      if File.exist?(lantae_file)
+        "# Lantae CLI Context\n\n" + File.read(lantae_file)
+      else
+        @logger.warn "LANTAE.md not found at #{lantae_file}" if @logger
+        nil
+      end
     end
   end
 end

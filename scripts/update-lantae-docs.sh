@@ -35,7 +35,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Paths
 DOCS_DIR="$PROJECT_ROOT/docs"
 PROVIDERS_DIR="$DOCS_DIR/providers"
-LANTAE_MD="$PROJECT_ROOT/lantae.md"
+LANTAE_MD="$PROJECT_ROOT/LANTAE.md"
 TEMPLATE_FILE="$PROJECT_ROOT/lantae.md.template"
 
 # Check if we're in the right directory
@@ -47,7 +47,7 @@ verify_project_structure() {
     fi
     
     if [[ ! -f "$LANTAE_MD" ]]; then
-        error_exit "lantae.md not found: $LANTAE_MD"
+        error_exit "LANTAE.md not found: $LANTAE_MD"
     fi
     
     show_success "Project structure verified"
@@ -123,7 +123,7 @@ generate_provider_content() {
 update_lantae_md() {
     local provider_content="$1"
     
-    show_progress "Updating lantae.md..."
+    show_progress "Updating LANTAE.md..."
     
     # Create backup
     cp "$LANTAE_MD" "$LANTAE_MD.backup"
@@ -146,7 +146,7 @@ update_lantae_md() {
     sed -i.tmp "s/Last generated: .*/Last generated: $(date '+%Y-%m-%d %H:%M:%S')/" "$LANTAE_MD"
     rm -f "$LANTAE_MD.tmp"
     
-    show_success "lantae.md updated"
+    show_success "LANTAE.md updated"
 }
 
 # Validate generated file
@@ -160,11 +160,11 @@ validate_output() {
     
     # Check that markers are present
     if ! grep -q "<!-- PROVIDER_CONTENT_START -->" "$LANTAE_MD"; then
-        error_exit "Start marker not found in lantae.md"
+        error_exit "Start marker not found in LANTAE.md"
     fi
     
     if ! grep -q "<!-- PROVIDER_CONTENT_END -->" "$LANTAE_MD"; then
-        error_exit "End marker not found in lantae.md"
+        error_exit "End marker not found in LANTAE.md"
     fi
     
     # Check that content was added
@@ -216,9 +216,9 @@ main() {
     # Show summary
     echo ""
     echo -e "${BLUE}Summary:${NC}"
-    echo "  • Updated: lantae.md"
+    echo "  • Updated: LANTAE.md"
     echo "  • Providers processed: $(find "$PROVIDERS_DIR" -name "*.md" ! -name "provider-comparison.md" | wc -l | tr -d ' ')"
-    echo "  • Backup created: lantae.md.backup"
+    echo "  • Backup created: LANTAE.md.backup"
     echo "  • Last updated: $(date '+%Y-%m-%d %H:%M:%S')"
     
     # Clean up old backup if successful
@@ -233,13 +233,13 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo ""
     echo "Usage: $0"
     echo ""
-    echo "This script automatically updates lantae.md by reading from provider"
+    echo "This script automatically updates LANTAE.md by reading from provider"
     echo "documentation files in docs/providers/."
     echo ""
     echo "The script will:"
     echo "  1. Read all provider .md files"
     echo "  2. Extract key information from each"
-    echo "  3. Update the provider content section in lantae.md"
+    echo "  3. Update the provider content section in LANTAE.md"
     echo "  4. Validate the generated output"
     echo ""
     exit 0

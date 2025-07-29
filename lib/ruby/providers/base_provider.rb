@@ -35,6 +35,27 @@ module Lantae
       def max_tokens
         4096
       end
+      
+      def context_window
+        # Default context window size - subclasses should override
+        8192
+      end
+      
+      def calculate_context_usage(messages)
+        # Simple approximation: ~4 characters per token
+        total_chars = messages.sum { |msg| msg[:content].to_s.length }
+        (total_chars / 4.0).ceil
+      end
+      
+      def remaining_context(messages)
+        used_tokens = calculate_context_usage(messages)
+        context_window - used_tokens
+      end
+      
+      def context_percentage_used(messages)
+        used_tokens = calculate_context_usage(messages)
+        ((used_tokens.to_f / context_window) * 100).round(1)
+      end
 
       def default_temperature
         0.1

@@ -1,0 +1,125 @@
+{
+  "metadata": {
+    "created": "2025-01-29",
+    "last_updated": "2025-01-29",
+    "version": "1.0.0"
+  },
+  "validation_results": {
+    "last_run": null,
+    "summary": {
+      "total_issues": 0,
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0,
+      "info": 0
+    },
+    "categories": {
+      "static_analysis": {
+        "rubocop": {
+          "last_run": null,
+          "issues": []
+        },
+        "security": {
+          "last_run": null,
+          "issues": []
+        },
+        "complexity": {
+          "last_run": null,
+          "issues": []
+        }
+      },
+      "qa_checks": {
+        "test_coverage": {
+          "last_run": null,
+          "coverage_percentage": null,
+          "issues": []
+        },
+        "dead_code": {
+          "last_run": null,
+          "issues": []
+        },
+        "documentation": {
+          "last_run": null,
+          "issues": []
+        }
+      },
+      "dry_run_validation": {
+        "syntax_check": {
+          "last_run": null,
+          "issues": []
+        },
+        "dependency_check": {
+          "last_run": null,
+          "issues": []
+        },
+        "integration_test": {
+          "last_run": null,
+          "issues": []
+        }
+      }
+    }
+  },
+  "manual_debt": [
+    {
+      "id": "context-calculation-fix",
+      "title": "Context calculation failing - needs better token estimation",
+      "description": "The context window calculation is failing. Need to implement proper token counting instead of character/4 approximation. Current implementation uses a simple character/4 heuristic which is inaccurate for different languages and tokenizers.",
+      "category": "bug",
+      "priority": "high",
+      "created": "2025-01-29",
+      "assignee": null,
+      "effort_estimate": "2-4 hours",
+      "files": [
+        "lib/ruby/providers/base_provider.rb",
+        "lib/ruby/conversation_manager.rb"
+      ],
+      "status": "open",
+      "impact": "Context tracking shows incorrect remaining tokens, potentially leading to API errors when context limit is exceeded"
+    },
+    {
+      "id": "rubocop-style-violations",
+      "title": "Address RuboCop style violations across codebase",
+      "description": "Multiple RuboCop style violations need to be addressed to maintain code consistency and readability.",
+      "category": "style",
+      "priority": "medium",
+      "created": "2025-01-29",
+      "assignee": null,
+      "effort_estimate": "1-2 hours",
+      "files": [
+        "lib/ruby/",
+        "spec/",
+        "bin/"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "test-coverage-improvement",
+      "title": "Improve test coverage for new features",
+      "description": "Recent context tracking and validation features need comprehensive test coverage.",
+      "category": "testing",
+      "priority": "medium",
+      "created": "2025-01-29",
+      "assignee": null,
+      "effort_estimate": "4-6 hours",
+      "files": [
+        "lib/ruby/validation_engine.rb",
+        "lib/ruby/providers/base_provider.rb",
+        "lib/ruby/conversation_manager.rb"
+      ],
+      "status": "open"
+    },
+    {
+      "id": "implement-better-error-handling",
+      "title": "Implement better error handling",
+      "description": "Current error handling is inconsistent across providers and needs standardization",
+      "category": "manual",
+      "priority": "medium",
+      "created": "2025-07-28",
+      "assignee": null,
+      "effort_estimate": null,
+      "files": [],
+      "status": "open"
+    }
+  ]
+}

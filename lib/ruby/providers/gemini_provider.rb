@@ -52,6 +52,19 @@ module Lantae
           4096
         end
       end
+      
+      def context_window
+        case @default_model
+        when /1.5-pro/
+          1000000  # 1M tokens
+        when /1.5-flash/
+          1000000  # 1M tokens
+        when /1.0-pro/
+          32768
+        else
+          32768
+        end
+      end
 
       private
 

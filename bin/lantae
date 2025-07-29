@@ -38,6 +38,16 @@ require_relative '../lib/ruby/default_model_selector'
 
 VERSION = '1.0.0'
 
+# Helper function to read LANTAE.md context
+def read_lantae_context
+  lantae_file = File.expand_path('../LANTAE.md', __FILE__)
+  if File.exist?(lantae_file)
+    "\n\n# Lantae CLI Context\n\n" + File.read(lantae_file)
+  else
+    ""
+  end
+end
+
 class SecretManager
   def initialize(region = 'us-east-1', secret_name = 'lantae/api-keys')
     @region = region
@@ -225,7 +235,7 @@ class OllamaProvider
       tools_context = @tool_manager.get_tools_context
       system_message = {
         role: 'system',
-        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses.#{read_lantae_context}"
       }
       
       # Insert system message at the beginning if it doesn't exist, or merge with existing system message
@@ -437,7 +447,7 @@ class OpenAIProvider
       tools_context = @tool_manager.get_tools_context
       system_message = {
         role: 'system',
-        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses.#{read_lantae_context}"
       }
       
       # Insert system message at the beginning if it doesn't exist, or merge with existing system message
@@ -612,7 +622,7 @@ class AnthropicProvider
       tools_context = @tool_manager.get_tools_context
       system_message = {
         role: 'system',
-        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses.#{read_lantae_context}"
       }
       
       # Insert system message at the beginning if it doesn't exist, or merge with existing system message
@@ -764,7 +774,7 @@ class GeminiProvider
       tools_context = @tool_manager.get_tools_context
       system_message = {
         role: 'system',
-        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses.#{read_lantae_context}"
       }
       
       # Insert system message at the beginning if it doesn't exist, or merge with existing system message
@@ -911,7 +921,7 @@ class MistralProvider
       tools_context = @tool_manager.get_tools_context
       system_message = {
         role: 'system',
-        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses.#{read_lantae_context}"
       }
       
       # Insert system message at the beginning if it doesn't exist, or merge with existing system message
@@ -1058,7 +1068,7 @@ class PerplexityProvider
       tools_context = @tool_manager.get_tools_context
       system_message = {
         role: 'system',
-        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses.#{read_lantae_context}"
       }
       
       # Insert system message at the beginning if it doesn't exist, or merge with existing system message
@@ -1229,7 +1239,7 @@ class BedrockProvider
       tools_context = @tool_manager.get_tools_context
       system_message = {
         role: 'system',
-        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses."
+        content: "You are an AI assistant responding to requests from the Lantae CLI interface. Lantae is a multi-provider LLM command-line tool that allows users to interact with various AI models.\n\nYou have access to various tools for file operations and system commands. #{tools_context}\n\nWhen you want to use a tool, include a TOOL_CALL in your response. You can make multiple tool calls in a single response. After each tool call, I will provide the result, and you can continue your response or make additional tool calls as needed.\n\nAlways explain what you're doing and why before using tools. Be helpful and thorough in your responses.#{read_lantae_context}"
       }
       
       # Insert system message at the beginning if it doesn't exist, or merge with existing system message
