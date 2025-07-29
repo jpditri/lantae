@@ -7,6 +7,7 @@ require_relative 'direct_authenticator'
 require_relative 'planning_agent'
 require_relative 'task_analyzer'
 require_relative 'workspace_authenticator'
+require_relative 'plan_visualizer'
 
 module Lantae
   class AsyncREPL
@@ -327,6 +328,9 @@ module Lantae
             /login [provider]    - Authenticate with provider (like Claude Code)
             /workspace [name]    - Switch to workspace authentication context
             /plan <task>         - Create execution plan for complex task
+            /execute <id>        - Execute a saved plan
+            /plans               - List saved plans
+            /graph <id>          - Show ASCII graph for a plan
             /auto                - Toggle automatic planning for complex tasks
             /help                - Show this help
             
@@ -360,6 +364,15 @@ module Lantae
         
       when 'plan'
         handle_plan_command(command_id, args)
+        
+      when 'execute'
+        handle_execute_command(command_id, args)
+        
+      when 'plans'
+        list_saved_plans(command_id)
+        
+      when 'graph'
+        show_plan_graph(command_id, args)
         
       when 'auto'
         toggle_auto_planning(command_id)
@@ -562,7 +575,7 @@ module Lantae
     
     def setup_autocomplete
       # Basic autocomplete for slash commands
-      commands = %w[status cancel clear model provider models side login workspace plan auto help]
+      commands = %w[status cancel clear model provider models side login workspace plan execute plans graph auto help]
       
       comp = proc do |input|
         if input.start_with?('/')
@@ -682,13 +695,15 @@ module Lantae
         available_tools: @tool_manager&.list_available_tools || []
       })
       
-      # Format plan output
-      plan_output = format_plan(plan)
-      add_command_output(command_id, plan_output)
+      # Format plan output with ASCII visualization
+      ascii_graph = Lantae::PlanVisualizer.generate_ascii_graph(plan)
+      add_command_output(command_id, ascii_graph)
       
       # Store plan for potential execution
       @commands[command_id][:plan] = plan
-      add_command_output(command_id, "\nTo execute this plan, use: /execute #{command_id}")
+      plan_id = save_plan(plan, command[:input])
+      add_command_output(command_id, "\nPlan saved as ID: #{plan_id}")
+      add_command_output(command_id, "To execute this plan, use: /execute #{plan_id}")
     end
     
     def toggle_auto_planning(command_id)
@@ -716,13 +731,14 @@ module Lantae
         model: command[:model]
       })
       
-      # Show plan summary
+      # Show plan visualization
       @output_mutex.synchronize do
         puts "#{\"\\e[92m\"}📊 Execution Plan:#{\"\\e[0m\"}"
-        puts "  Objective: #{plan['objective']}"
-        puts "  Phases: #{plan['phases'].size}"
-        total_tasks = plan['phases'].sum { |p| p['tasks'].size }
-        puts "  Total Tasks: #{total_tasks}"
+        puts
+        
+        # Generate ASCII graph
+        ascii_graph = Lantae::PlanVisualizer.generate_ascii_graph(plan)
+        puts ascii_graph
         puts
       end
       
@@ -809,6 +825,234 @@ module Lantae
       end
       
       output.join("\n")
+    end
+    
+    def handle_execute_command(command_id, args)
+      plan_id = args.strip
+      
+      if plan_id.empty?
+        add_command_output(command_id, "Usage: /execute <plan-id>")
+        add_command_output(command_id, "Use /plans to see available plans")
+        return
+      end
+      
+      plan = load_plan(plan_id)
+      unless plan
+        add_command_output(command_id, "Plan '#{plan_id}' not found")
+        return
+      end
+      
+      add_command_output(command_id, "🚀 Executing plan: #{plan['objective']}")
+      
+      # Execute plan in background thread
+      Thread.new do
+        begin
+          execute_plan_phases(command_id, plan)
+        rescue => e
+          @output_mutex.synchronize do
+            puts "\n❌ Plan execution failed: #{e.message}"
+          end
+        end
+      end
+    end
+    
+    def list_saved_plans(command_id)
+      plans = get_saved_plans
+      
+      if plans.empty?
+        add_command_output(command_id, "No saved plans found")
+        return
+      end
+      
+      output = []
+      output << "📋 Saved Plans"
+      output << "━" * 60
+      
+      plans.each do |plan_info|
+        status_emoji = case plan_info[:status]
+        when 'completed' then '✅'
+        when 'failed' then '❌'
+        when 'running' then '⚡'
+        else '📋'
+        end
+        
+        output << "#{status_emoji} #{plan_info[:id]} - #{plan_info[:objective]}"
+        output << "    Created: #{plan_info[:created_at]}"
+        output << "    Phases: #{plan_info[:phases_count]}"
+        output << ""
+      end
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def show_plan_graph(command_id, args)
+      plan_id = args.strip
+      
+      if plan_id.empty?
+        add_command_output(command_id, "Usage: /graph <plan-id>")
+        add_command_output(command_id, "Use /plans to see available plans")
+        return
+      end
+      
+      plan = load_plan(plan_id)
+      unless plan
+        add_command_output(command_id, "Plan '#{plan_id}' not found")
+        return
+      end
+      
+      # Generate and show ASCII graph
+      ascii_graph = Lantae::PlanVisualizer.generate_ascii_graph(plan)
+      add_command_output(command_id, ascii_graph)
+    end
+    
+    def save_plan(plan, original_input)
+      plans_dir = File.expand_path('~/.lantae/plans')
+      FileUtils.mkdir_p(plans_dir) unless Dir.exist?(plans_dir)
+      
+      plan_id = "plan_#{Time.now.strftime('%Y%m%d_%H%M%S')}_#{rand(1000)}"
+      
+      plan_data = plan.merge({
+        'id' => plan_id,
+        'original_input' => original_input,
+        'saved_at' => Time.now.to_s,
+        'workspace' => @options[:workspace]
+      })
+      
+      plan_file = File.join(plans_dir, "#{plan_id}.json")
+      File.write(plan_file, JSON.pretty_generate(plan_data))
+      
+      plan_id
+    end
+    
+    def load_plan(plan_id)
+      plans_dir = File.expand_path('~/.lantae/plans')
+      plan_file = File.join(plans_dir, "#{plan_id}.json")
+      
+      return nil unless File.exist?(plan_file)
+      
+      JSON.parse(File.read(plan_file))
+    rescue JSON::ParserError
+      nil
+    end
+    
+    def get_saved_plans
+      plans_dir = File.expand_path('~/.lantae/plans')
+      return [] unless Dir.exist?(plans_dir)
+      
+      Dir.glob(File.join(plans_dir, '*.json')).map do |file|
+        begin
+          plan = JSON.parse(File.read(file))
+          {
+            id: plan['id'],
+            objective: plan['objective'],
+            created_at: plan['saved_at'],
+            phases_count: plan['phases']&.size || 0,
+            status: plan['status'] || 'pending'
+          }
+        rescue JSON::ParserError
+          nil
+        end
+      end.compact.sort_by { |p| p[:created_at] }.reverse
+    end
+    
+    def execute_plan_phases(command_id, plan)
+      @output_mutex.synchronize do
+        puts "\n#{\"\\e[92m\"}🚀 Executing Plan#{\"\\e[0m\"}"
+        puts
+        
+        # Show mini visualization for execution
+        puts "#{\"\\e[94m\"}📋 #{plan['objective']}#{\"\\e[0m\"}"
+        puts "#{\"\\e[90m\"}Phases: #{plan['phases'].size} | Tasks: #{plan['phases'].sum { |p| p['tasks']&.size || 0 }}#{\"\\e[0m\"}"
+        puts "━" * 80
+        puts
+      end
+      
+      plan['phases'].each_with_index do |phase, phase_idx|
+        @output_mutex.synchronize do
+          puts "#{\"\\e[94m\"}Phase #{phase_idx + 1}: #{phase['name']}#{\"\\e[0m\"}"
+        end
+        
+        # Check if tasks can run in parallel
+        parallel_tasks = phase['tasks']&.select { |t| t['parallel'] } || []
+        sequential_tasks = phase['tasks']&.reject { |t| t['parallel'] } || []
+        
+        # Execute parallel tasks first
+        if parallel_tasks.any?
+          execute_parallel_tasks(command_id, parallel_tasks)
+        end
+        
+        # Execute sequential tasks
+        sequential_tasks.each do |task|
+          execute_plan_task(command_id, task)
+        end
+      end
+      
+      @output_mutex.synchronize do
+        puts "\n✅ Plan execution completed!"
+      end
+      
+      # Update plan status
+      update_plan_status(plan['id'], 'completed')
+    end
+    
+    def execute_parallel_tasks(command_id, tasks)
+      @output_mutex.synchronize do
+        puts "  🔄 Executing #{tasks.size} tasks in parallel..."
+      end
+      
+      threads = tasks.map do |task|
+        Thread.new do
+          execute_plan_task(command_id, task)
+        end
+      end
+      
+      threads.each(&:join)
+    end
+    
+    def execute_plan_task(command_id, task)
+      @output_mutex.synchronize do
+        puts "  → #{task['name']}"
+      end
+      
+      # Create conversation for this task
+      task_conversation = @conversation.dup
+      task_conversation << { role: 'user', content: task['description'] }
+      
+      # Get current provider info for this command
+      command = @commands[command_id]
+      provider_clone = create_provider_clone(command[:provider], command[:model])
+      
+      begin
+        response = provider_clone.chat(task_conversation, @options)
+        
+        # Add to conversation
+        @conversation << { role: 'user', content: task['description'] }
+        @conversation << { role: 'assistant', content: response }
+        
+        @output_mutex.synchronize do
+          puts "    ✓ #{task['name']}"
+        end
+      rescue => e
+        @output_mutex.synchronize do
+          puts "    ✗ #{task['name']}: #{e.message}"
+        end
+      end
+    end
+    
+    def update_plan_status(plan_id, status)
+      plans_dir = File.expand_path('~/.lantae/plans')
+      plan_file = File.join(plans_dir, "#{plan_id}.json")
+      
+      return unless File.exist?(plan_file)
+      
+      begin
+        plan = JSON.parse(File.read(plan_file))
+        plan['status'] = status
+        plan['updated_at'] = Time.now.to_s
+        File.write(plan_file, JSON.pretty_generate(plan))
+      rescue JSON::ParserError
+        # Ignore
+      end
     end
     
     def cleanup
