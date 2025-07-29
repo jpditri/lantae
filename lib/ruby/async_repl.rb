@@ -790,7 +790,7 @@ module Lantae
         
         # Execute tasks in phase
         phase['tasks'].each do |task|
-          execute_planned_task(command_id, task, command)
+          execute_plan_task(command_id, task)
         end
       end
       
@@ -801,35 +801,6 @@ module Lantae
       end
       
       show_completion(command_id)
-    end
-    
-    def execute_planned_task(command_id, task, command)
-      @output_mutex.synchronize do
-        puts "  → Executing: #{task['name']}"
-      end
-      
-      # Create conversation for this task
-      task_conversation = @conversation.dup
-      task_conversation << { role: 'user', content: task['description'] }
-      
-      # Use appropriate provider for task
-      provider_clone = create_provider_clone(command[:provider], command[:model])
-      
-      begin
-        response = provider_clone.chat(task_conversation, @options)
-        
-        # Add to conversation
-        @conversation << { role: 'user', content: task['description'] }
-        @conversation << { role: 'assistant', content: response }
-        
-        @output_mutex.synchronize do
-          puts "    ✓ Completed: #{task['name']}"
-        end
-      rescue => e
-        @output_mutex.synchronize do
-          puts "    ✗ Failed: #{e.message}"
-        end
-      end
     end
     
     def format_plan(plan)
