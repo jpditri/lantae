@@ -83,6 +83,26 @@ This document tracks feature implementation status across all language implement
 | **Conversation Management** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Template System** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Cost Tracking** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Context Window Tracking** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Validation System** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Tech Debt Management** | ✅ | ❌ | 📋 | 📋 | 📋 |
+
+---
+
+## 🔍 Quality Assurance & Tech Debt
+
+| Feature | Ruby | LISP | Rust | Node.js | Python |
+|---------|------|------|------|---------|---------|
+| **Static Code Analysis** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Security Scanning** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Complexity Analysis** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Test Coverage Tracking** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Dead Code Detection** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Documentation Coverage** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Dependency Validation** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Tech Debt Tracking** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Debt Reporting (HTML/CSV)** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Auto-fix Capabilities** | ✅ | ❌ | 📋 | 📋 | 📋 |
 
 ---
 
@@ -97,6 +117,21 @@ This document tracks feature implementation status across all language implement
 | **Uninstall System** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Cross-Platform Support** | ✅ | 🟡 | 📋 | 📋 | 📋 |
 | **Binary Distribution** | ❌ | ❌ | 📋 | 📋 | 📋 |
+
+---
+
+## 📋 Rake Tasks & Automation
+
+| Task | Ruby | LISP | Rust | Node.js | Python |
+|------|------|------|------|---------|---------|
+| **Test Suite** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Linting** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Documentation Generation** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Installation** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Validation Suite** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Tech Debt Management** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Cost Reporting** | ✅ | ❌ | 📋 | 📋 | 📋 |
+| **Model Management** | ✅ | ❌ | 📋 | 📋 | 📋 |
 
 ---
 
@@ -137,6 +172,8 @@ This document tracks feature implementation status across all language implement
 | `/cost` | ✅ | ❌ | 📋 | 📋 | 📋 |
 | `/uninstall` | ✅ | ❌ | 📋 | 📋 | 📋 |
 | `/clear` | ✅ | ❌ | 📋 | 📋 | 📋 |
+| `/validate` | ✅ | ❌ | 📋 | 📋 | 📋 |
+| `/debt` | ✅ | ❌ | 📋 | 📋 | 📋 |
 
 ---
 
@@ -151,6 +188,7 @@ This document tracks feature implementation status across all language implement
 | **API Documentation** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Architecture Guide** | ✅ | ❌ | 📋 | 📋 | 📋 |
 | **Development Guide** | ✅ | 🟡 | 📋 | 📋 | 📋 |
+| **Validation Guide** | ✅ | ❌ | 📋 | 📋 | 📋 |
 
 ---
 
@@ -233,5 +271,5 @@ Instead of a separate PowerShell implementation, **Rust provides Windows support
 
 *This document is updated with each feature addition. Check implementation-specific READMEs for detailed status and instructions.*
 
-**Last Updated**: 2025-07-28  
-**Document Version**: 1.1
+**Last Updated**: 2025-07-29  
+**Document Version**: 1.2
