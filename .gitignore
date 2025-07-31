@@ -65,4 +65,4 @@ secrets.json
 api-keys.json
 lantae-secrets.json
 *.key
-*.pem
+*.pemrust-lantae/target/
