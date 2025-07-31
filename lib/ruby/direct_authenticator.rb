@@ -59,13 +59,27 @@ module Lantae
     def self.open_browser(url)
       case RUBY_PLATFORM
       when /darwin/
-        system("open '#{url}'")
+        unless system("open '#{url}'")
+          puts "Please open in your browser: #{url}"
+        end
       when /linux/
-        system("xdg-open '#{url}' 2>/dev/null")
+        if system("which xdg-open > /dev/null 2>&1")
+          system("xdg-open '#{url}' > /dev/null 2>&1") || puts("Please open: #{url}")
+        elsif system("which sensible-browser > /dev/null 2>&1")
+          system("sensible-browser '#{url}' > /dev/null 2>&1") || puts("Please open: #{url}")
+        elsif system("which gnome-open > /dev/null 2>&1")
+          system("gnome-open '#{url}' > /dev/null 2>&1") || puts("Please open: #{url}")
+        elsif system("which gio > /dev/null 2>&1")
+          system("gio open '#{url}' > /dev/null 2>&1") || puts("Please open: #{url}")
+        else
+          puts "Please open in your browser: #{url}"
+        end
       when /mswin|mingw/
-        system("start \"\" \"#{url}\"")
+        unless system("start \"\" \"#{url}\"")
+          puts "Please open: #{url}"
+        end
       else
-        puts "Please open: #{url}"
+        puts "Please open in your browser: #{url}"
       end
     end
     

@@ -3,6 +3,22 @@ module Lantae
     def self.generate_side_content(options = {})
       content = []
       
+      # Command queue overview (if available)
+      if options[:commands]
+        running = options[:commands].values.count { |c| c[:status] == :running }
+        queued  = options[:commands].values.count { |c| c[:status] == :queued }
+        # ASCII mini table for queue status
+        col1, col2 = 11, 8
+        content << "\e[1;34m📋 Command Queue\e[0m"
+        content << "┌#{'─'*col1}┬#{'─'*col2}┐"
+        content << "│ Status#{' '*(col1-6)}│ Count#{' '*(col2-5)}│"
+        content << "├#{'─'*col1}┼#{'─'*col2}┤"
+        content << "│ Running#{' '*(col1-7)}│#{running.to_s.rjust(col2)}│"
+        content << "│ Queued #{' '*(col1-7)}│#{queued.to_s.rjust(col2)}│"
+        content << "└#{'─'*col1}┴#{'─'*col2}┘"
+        content << ""
+      end
+      
       # Current session info
       content << "\e[1;33m📊 Session Info\e[0m"
       content << "Provider: #{options[:provider] || 'unknown'}"
@@ -84,10 +100,11 @@ module Lantae
       content << "/tool <name> - Execute tool"
       content << ""
       content << "\e[1mInterface:\e[0m"
-      content << "/side - Toggle side panel"
-      content << "/split - Toggle split screen"
-      content << "/help - Show this help"
-      content << "/quit - Exit lantae"
+      content << "/side   - Toggle side panel"
+      content << "/split  - Toggle split screen"
+      content << "/stream - Toggle token streaming output"
+      content << "/help   - Show this help"
+      content << "/quit   - Exit lantae"
       
       content.join("\n")
     end

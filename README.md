@@ -299,8 +299,8 @@ Enable LSP support with the `--enable-lsp` flag:
 #### Editor Integration
 The LSP server (`bin/lantae-lsp`) works with any LSP-compatible editor:
 - VS Code: Install the Lantae extension (coming soon)
-- Neovim: Use nvim-lspconfig
-- Vim: Use coc.nvim
+- Neovim: Use nvim-lspconfig (see docs/VIM-QUICKSTART.md)
+- Vim: Use the built-in vim-lantae plugin (see docs/VIM-QUICKSTART.md)
 - Emacs: Use lsp-mode
 
 See [LSP Implementation Guide](docs/LSP-IMPLEMENTATION.md) for detailed configuration.

@@ -80,7 +80,7 @@ module Lantae
 
       def get_provider_capabilities(provider_name = @current_provider)
         provider = get_provider(provider_name)
-        
+
         {
           name: provider.name,
           supports_streaming: provider.supports_streaming?,
@@ -94,6 +94,17 @@ module Lantae
           name: provider_name,
           error: e.message
         }
+      end
+
+      # Stream API for token-by-token output when supported.
+      # Yields each token chunk for real-time feedback.
+      def stream(messages, options = {}, &block)
+        provider = get_provider(@current_provider)
+        if provider.respond_to?(:stream) && provider.supports_streaming?
+          provider.stream(@current_model, messages, options, &block)
+        elsif block_given?
+          block.call(provider.chat(@current_model, messages, options))
+        end
       end
 
       private

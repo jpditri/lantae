@@ -1725,8 +1725,18 @@ def send_single_prompt(prompt, options)
   if options[:agent_mode]
     execute_agent_task(prompt, provider_manager, tool_manager, options)
   else
-    response = provider_manager.chat([{ role: 'user', content: prompt }], options)
-    formatted_response = Lantae::ResponseFormatter.format_response(response, 
+    messages = [{ role: 'user', content: prompt }]
+    if options[:stream] && provider_manager.get_provider.supports_streaming?
+      response = ''
+      print "\n"
+      provider_manager.stream(messages, options) do |chunk|
+        print chunk
+        response << chunk
+      end
+    else
+      response = provider_manager.chat(messages, options)
+    end
+    formatted_response = Lantae::ResponseFormatter.format_response(response,
       boxed: true,
       markdown: true
     )
@@ -3274,6 +3284,8 @@ def main
     agent_mode: false,
     enable_lsp: false,
     side_panel: true,
+    # Enable token-by-token streaming output when supported
+    stream: false,
     verbose: false
   }
 
@@ -3292,6 +3304,7 @@ def main
     opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
     opts.on('--no-side-panel', 'Disable the side panel display') { options[:side_panel] = false }
     opts.on('--stable-ui', 'Use stable UI mode with minimal redraws') { options[:stable_ui] = true }
+    opts.on('--stream', 'Enable token-by-token streaming output when supported') { options[:stream] = true }
     opts.on('--verbose', 'Show detailed model selection and system information') { options[:verbose] = true }
     opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }

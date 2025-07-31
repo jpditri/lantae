@@ -2,6 +2,10 @@ require 'net/http'
 require 'uri'
 require 'socket'
 require 'timeout'
+begin
+  require 'wifi'
+rescue LoadError
+end
 
 module Lantae
   class ProviderDetector
@@ -96,13 +100,16 @@ module Lantae
     
     def scan_network_for_ollama
       puts "\n🔍 Scanning local network for Ollama servers..."
-      
-      # Get local network info
-      local_ip = get_local_ip
-      return nil unless local_ip
-      
-      subnet = local_ip.split('.')[0..2].join('.')
+      # List available Wi-Fi networks to guide subnet selection
+      list_wifi_networks if @interactive
+
+      # Gather all private IPv4 addresses on this host
+      local_ips = get_local_ips
+      return nil if local_ips.empty?
       found_servers = []
+
+      # Scan each /24 subnet defined by local IPs
+      subnets = local_ips.map { |ip| ip.split('.')[0..2].join('.') }.uniq
       
       # Common Ollama ports
       ports = [11434, 11435, 8080]
@@ -111,31 +118,27 @@ module Lantae
       threads = []
       mutex = Mutex.new
       
-      # Scan gateway and common server IPs
-      ips_to_scan = [
-        "#{subnet}.1",    # Gateway
-        "#{subnet}.100",  # Common server range
-        "#{subnet}.101",
-        "#{subnet}.110",
-        "#{subnet}.200",
-      ]
-      
-      # Add current machine's IP neighbors
-      current_last_octet = local_ip.split('.').last.to_i
-      (-2..2).each do |offset|
-        neighbor = current_last_octet + offset
-        ips_to_scan << "#{subnet}.#{neighbor}" if neighbor > 0 && neighbor < 255
-      end
-      
-      ips_to_scan.uniq.each do |ip|
-        next if ip == local_ip # Skip self
-        
-        ports.each do |port|
-          threads << Thread.new do
-            if ollama_available?(ip, port)
-              mutex.synchronize do
-                found_servers << { host: ip, port: port }
-                puts "  ✅ Found Ollama at #{ip}:#{port}"
+      # For each subnet, probe common IPs and neighbors
+      subnets.each do |net|
+        # Gateway and common IPs
+        ips_to_scan = ["#{net}.1", "#{net}.100", "#{net}.101", "#{net}.110", "#{net}.200"]
+        # Add neighbor IPs around each local interface
+        local_ips.each do |ip|
+          last = ip.split('.').last.to_i
+          (-2..2).each do |d|
+            n = last + d
+            ips_to_scan << "#{net}.#{n}" if n.between?(1,254)
+          end
+        end
+
+        ips_to_scan.uniq.each do |ip|
+          ports.each do |port|
+            threads << Thread.new do
+              if ollama_available?(ip, port)
+                mutex.synchronize do
+                  found_servers << { host: ip, port: port }
+                  puts "  ✅ Found Ollama at #{ip}:#{port}"
+                end
               end
             end
           end
@@ -178,15 +181,29 @@ module Lantae
       }
     end
     
-    def get_local_ip
-      begin
-        # Create a UDP socket and connect to an external IP
-        # This doesn't actually send data but helps determine local IP
-        Socket.ip_address_list.detect do |intf|
-          intf.ipv4_private?
-        end&.ip_address
-      rescue
-        nil
+    # Return all private IPv4 addresses on this host (excluding loopback)
+    def get_local_ips
+      Socket.ip_address_list.select do |intf|
+        intf.ipv4? && intf.ipv4_private? && intf.ip_address != '127.0.0.1'
+      end.map(&:ip_address)
+    rescue
+      []
+    end
+
+    # List available Wi-Fi networks (uses nmcli on Linux or airport on macOS)
+    def list_wifi_networks
+      if defined?(Wifi) && Wifi.respond_to?(:scan)
+        puts "\nAvailable Wi‑Fi networks (via wifi gem):"
+        Wifi.scan.each { |net| puts "  - #{net.ssid}" }
+      elsif system('which nmcli > /dev/null 2>&1')
+        puts "\nAvailable Wi‑Fi networks (nmcli):"
+        system('nmcli -t -f SSID dev wifi list')
+      elsif system('which airport > /dev/null 2>&1')
+        puts "\nAvailable Wi‑Fi networks (airport):"
+        system('/System/Library/PrivateFrameworks/Apple80211.framework/Versions/Current/Resources/airport -s')
+      elsif system('which iwlist > /dev/null 2>&1')
+        puts "\nAvailable Wi‑Fi networks (iwlist):"
+        system('sudo iwlist scan')
       end
     end
     
