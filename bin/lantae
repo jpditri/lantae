@@ -28,6 +28,7 @@ require_relative '../lib/ruby/interactive_enhancements'
 require_relative '../lib/ruby/plugin_system'
 require_relative '../lib/ruby/enhanced_repl'
 require_relative '../lib/ruby/async_repl'
+require_relative '../lib/ruby/continuous_repl'
 require_relative '../lib/ruby/response_formatter'
 require_relative '../lib/ruby/api_key_authorizer'
 require_relative '../lib/ruby/intelligent_router'
@@ -35,6 +36,9 @@ require_relative '../lib/ruby/planning_agent'
 require_relative '../lib/ruby/cleanup_handler'
 require_relative '../lib/ruby/side_panel_manager'
 require_relative '../lib/ruby/default_model_selector'
+require_relative '../lib/ruby/smithy_manager'
+require_relative '../lib/ruby/providers/smithy_provider'
+require_relative '../lib/ruby/providers/base_provider'
 
 VERSION = '1.0.0'
 
@@ -154,7 +158,8 @@ class ProviderManager
       'bedrock' => BedrockProvider.new,
       'gemini' => GeminiProvider.new(secret_manager),
       'mistral' => MistralProvider.new(secret_manager),
-      'perplexity' => PerplexityProvider.new(secret_manager)
+      'perplexity' => PerplexityProvider.new(secret_manager),
+      'smithy' => SmithyProvider.new(secret_manager)
     }
     @current_provider = 'ollama'  # Default to Ollama
     @current_model = Lantae::DefaultModelSelector.get_default_model  # Dynamic default model
@@ -210,6 +215,37 @@ class ProviderManager
 
   def get_provider_info
     { provider: @current_provider, model: @current_model }
+  end
+
+  def calculate_context_usage(messages)
+    provider = @providers[@current_provider]
+    if provider.respond_to?(:calculate_context_usage)
+      provider.calculate_context_usage(messages)
+    else
+      # Fallback calculation
+      return 0 if messages.nil? || messages.empty?
+      total_chars = messages.sum { |msg| msg[:content].to_s.length }
+      (total_chars / 4.0).ceil
+    end
+  end
+
+  def context_window
+    provider = @providers[@current_provider]
+    if provider.respond_to?(:context_window)
+      provider.context_window
+    else
+      8192 # Default fallback
+    end
+  end
+
+  def remaining_context(messages)
+    used_tokens = calculate_context_usage(messages)
+    context_window - used_tokens
+  end
+
+  def context_percentage_used(messages)
+    used_tokens = calculate_context_usage(messages)
+    ((used_tokens.to_f / context_window) * 100).round(1)
   end
 end
 
@@ -1292,9 +1328,10 @@ class BedrockProvider
 end
 
 class ToolManager
-  def initialize(mcp_manager = nil, lsp_client = nil, auto_approve_reads = true)
+  def initialize(mcp_manager = nil, lsp_client = nil, smithy_manager = nil, auto_approve_reads = true)
     @mcp_manager = mcp_manager
     @lsp_client = lsp_client
+    @smithy_manager = smithy_manager
     @tools_used = []
     @files_accessed = []
     @auto_approve_reads = auto_approve_reads
@@ -1312,6 +1349,10 @@ class ToolManager
       @files_accessed << file_path if file_path
     end
     
+    if tool_name == 'smithy'
+      return execute_smithy(args)
+    end
+
     # Check if approval is needed based on tool type
     if requires_approval?(tool_name) && !ENV['LANTAE_AUTO_APPROVE_ALL']
       unless get_user_approval(tool_name, args)
@@ -1369,6 +1410,8 @@ class ToolManager
         make_directory(args)
       when 'find'
         find_files(args)
+      when 'smithy'
+        execute_smithy(args)
       else
         raise "Tool '#{tool_name}' not found. Available tools: #{list_available_tools.join(', ')}"
       end
@@ -1379,6 +1422,7 @@ class ToolManager
       # Display success indicator
       puts "✅ Tool completed: #{tool_name}"
       $stdout.flush
+      File.write("tool_output.txt", result)
       
       result
     rescue => e
@@ -1407,6 +1451,7 @@ class ToolManager
       - ls [directory]: List files in directory
       - find <pattern>: Find files matching pattern
       - pwd: Get current directory
+      - smithy <command>: Execute smithy commands (e.g., validate, build, new <project_name>)
       - git <command>: Execute git commands
       - bundle <command>: Execute bundle commands
       - ruby <code>: Execute Ruby code
@@ -1422,7 +1467,7 @@ class ToolManager
   end
 
   def list_available_tools
-    builtin_tools = %w[bash ruby python ls cat pwd git bundle write_file edit_file create_file delete_file mkdir find]
+    builtin_tools = %w[bash ruby python ls cat pwd git bundle write_file edit_file create_file delete_file mkdir find smithy]
     
     if @mcp_manager
       mcp_tools = @mcp_manager.get_available_tools.keys
@@ -1695,9 +1740,20 @@ class ToolManager
   rescue => e
     "Error: #{e.message}"
   end
+
+  def execute_smithy(args)
+    @smithy_manager.execute(args)
+  end
 end
 
 def send_single_prompt(prompt, options)
+  if prompt.start_with?('smithy')
+    smithy_manager = SmithyManager.new
+    tool_manager = ToolManager.new(nil, nil, smithy_manager)
+    tool_manager.execute_tool('smithy', prompt[7..-1])
+    return
+  end
+
   secret_manager = SecretManager.new(options[:region], options[:secret])
   
   # Initialize MCP if enabled
@@ -1712,7 +1768,8 @@ def send_single_prompt(prompt, options)
     end
   end
   
-  tool_manager = ToolManager.new(mcp_manager, nil)  # No LSP in non-REPL mode
+    smithy_manager = SmithyManager.new
+  tool_manager = ToolManager.new(mcp_manager, nil, smithy_manager)  # No LSP in non-REPL mode
   provider_manager = ProviderManager.new(secret_manager, tool_manager)
   
   if options[:provider] != 'ollama'
@@ -1769,9 +1826,8 @@ def execute_agent_task(task_description, provider_manager, tool_manager, options
   task_analyzer = TaskAnalyzer.new
   task_database = TaskDatabase.new
   
-  planning_agent = PlanningAgent.new(
+  planning_agent = Lantae::PlanningAgent.new(
     provider_manager, 
-    tool_manager,
     task_analyzer: task_analyzer,
     logger: Logger.new(STDOUT)
   )
@@ -2279,7 +2335,8 @@ def start_repl(options)
     end
   end
   
-  tool_manager = ToolManager.new(mcp_manager, lsp_client)
+    smithy_manager = SmithyManager.new
+  tool_manager = ToolManager.new(mcp_manager, lsp_client, smithy_manager)
   
   # Smart provider detection
   detection_result = Lantae::SmartProviderManager.initialize_with_detection(
@@ -2337,7 +2394,9 @@ def start_repl(options)
   end
   
   # Choose REPL based on UI mode
-  if options[:stable_ui]
+  if options[:continuous]
+    async_repl = Lantae::ContinuousREPL.new(provider_manager, tool_manager, options)
+  elsif options[:stable_ui]
     require_relative '../lib/ruby/stable_async_repl'
     async_repl = Lantae::StableAsyncREPL.new(provider_manager, tool_manager, options)
   else
@@ -2708,10 +2767,10 @@ def handle_agent_command(args, provider_manager, tool_manager, options)
     
     # Just create and show the plan
     task_analyzer = TaskAnalyzer.new
-    planning_agent = PlanningAgent.new(provider_manager, tool_manager, task_analyzer: task_analyzer)
+    planning_agent = Lantae::PlanningAgent.new(provider_manager, task_analyzer: task_analyzer)
     
     puts "#{"\e[93m"}📋 Creating execution plan...#{"\e[0m"}"
-    task = planning_agent.plan_task(task_description)
+    task = planning_agent.create_plan(task_description)
     
     puts "\n#{"\e[92m"}📊 Execution Plan:#{"\e[0m"}"
     puts task.to_tree_string
@@ -3277,16 +3336,18 @@ def main
     secret: 'lantae/api-keys',
     temperature: 0.1,
     auto_accept: false,
-    planning_mode: false,
+    planning_mode: true,
     no_banner: false,
-    enable_mcp: false,
+    enable_mcp: true,
     mcp_config: nil,
-    agent_mode: false,
-    enable_lsp: false,
+    agent_mode: true,
+    enable_lsp: true,
+    continuous: true,
     side_panel: true,
     # Enable token-by-token streaming output when supported
-    stream: false,
-    verbose: false
+    stream: true,
+    verbose: true,
+    intelligent_routing: true
   }
 
   OptionParser.new do |opts|
@@ -3300,17 +3361,26 @@ def main
     opts.on('-t', '--temperature TEMP', 'Temperature for responses') { |v| options[:temperature] = v.to_f }
     opts.on('-y', '--auto-accept', 'Auto-accept all prompts and confirmations') { options[:auto_accept] = true }
     opts.on('--planning-mode', 'Enable planning mode for complex tasks') { options[:planning_mode] = true }
+    opts.on('--no-planning', 'Disable planning mode') { options[:planning_mode] = false }
     opts.on('--agent', 'Enable agent mode with task decomposition') { options[:agent_mode] = true }
+    opts.on('--no-agent', 'Disable agent mode') { options[:agent_mode] = false }
     opts.on('--no-banner', 'Disable the startup banner') { options[:no_banner] = true }
     opts.on('--no-side-panel', 'Disable the side panel display') { options[:side_panel] = false }
     opts.on('--stable-ui', 'Use stable UI mode with minimal redraws') { options[:stable_ui] = true }
     opts.on('--stream', 'Enable token-by-token streaming output when supported') { options[:stream] = true }
+    opts.on('--no-stream', 'Disable streaming output') { options[:stream] = false }
     opts.on('--verbose', 'Show detailed model selection and system information') { options[:verbose] = true }
+    opts.on('--no-verbose', 'Disable verbose output') { options[:verbose] = false }
     opts.on('--enable-mcp', 'Enable MCP (Model Context Protocol) support') { options[:enable_mcp] = true }
+    opts.on('--disable-mcp', 'Disable MCP support') { options[:enable_mcp] = false }
     opts.on('--mcp-config PATH', 'Path to MCP server configuration file') { |v| options[:mcp_config] = v }
     opts.on('--enable-lsp', 'Enable LSP (Language Server Protocol) for code intelligence') { options[:enable_lsp] = true }
+    opts.on('--disable-lsp', 'Disable LSP support') { options[:enable_lsp] = false }
     opts.on('--lsp-port PORT', 'LSP server port (default: 7777)') { |v| options[:lsp_port] = v.to_i }
+    opts.on('--continuous', 'Enable continuous typing mode (type while AI thinks)') { options[:continuous] = true }
+    opts.on('--no-continuous', 'Disable continuous typing mode') { options[:continuous] = false }
     opts.on('--intelligent-routing', 'Enable intelligent prompt routing through planning/squad/implementation stages') { options[:intelligent_routing] = true }
+    opts.on('--no-routing', 'Disable intelligent routing') { options[:intelligent_routing] = false }
     opts.on('--routing-config PATH', 'Path to routing configuration YAML file') { |v| options[:routing_config] = v }
     opts.on('-v', '--version', 'Show version') { puts VERSION; exit }
     opts.on('-h', '--help', 'Show this help') { puts opts; exit }

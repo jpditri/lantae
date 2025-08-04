@@ -335,6 +335,10 @@ module Lantae
             /provider <name>     - Switch provider for future commands
             /models              - List available models
             /side                - Toggle side panel display
+            /review [id]         - Review command results (or last if no id)
+            /history [n]         - Show recent command history (default: 10)
+            /follow <id> <text>  - Send follow-up to a command result
+            /export <id> [file]  - Export command result to file
             /login [provider]    - Authenticate with provider (like Claude Code)
             /workspace [name]    - Switch to workspace authentication context
             /plan <task>         - Create execution plan for complex task
@@ -411,6 +415,18 @@ module Lantae
         
       when 'cost'
         handle_cost_command(command_id, args)
+        
+      when 'review'
+        handle_review_command(command_id, args)
+        
+      when 'history'
+        handle_history_command(command_id, args)
+        
+      when 'follow'
+        handle_follow_command(command_id, args)
+        
+      when 'export'
+        handle_export_command(command_id, args)
         
       else
         # Command not handled by async REPL
@@ -493,7 +509,8 @@ module Lantae
             model: command[:model] || current_info[:model],
             temperature: @options[:temperature],
             conversation: @conversation,
-            tools_available: @tool_manager&.list_available_tools || []
+            tools_available: @tool_manager&.list_available_tools || [],
+            commands: @commands
           )
           
           formatted_response = Lantae::ResponseFormatter.with_side_panel(formatted_response, side_content)
@@ -643,14 +660,101 @@ module Lantae
     end
     
     def setup_autocomplete
-      # Basic autocomplete for slash commands
-      commands = %w[status cancel clear model provider models side login workspace plan execute plans graph auto conversation cost help]
+      # Enhanced autocomplete for slash commands and arguments
+      slash_commands = %w[status cancel clear model provider models side login workspace plan execute plans graph auto conversation cost help tool tools mcp lsp agent squad task review history follow export]
+      providers = %w[ollama openai anthropic bedrock gemini mistral perplexity]
+      
+      # Get available models (cached for performance)
+      models = []
+      begin
+        models = @provider_manager.list_models || []
+        if models.empty?
+          models = %w[cogito:latest llama3.1:8b codellama:7b mistral:7b]
+        end
+      rescue
+        models = %w[cogito:latest llama3:latest codellama:latest mistral:latest]
+      end
+      
+      # Get available tools
+      tools = []
+      begin
+        tools = @tool_manager.list_available_tools || []
+      rescue
+        tools = %w[bash cat ls pwd git write_file edit_file create_file delete_file mkdir find]
+      end
+      
+      # MCP and LSP subcommands
+      mcp_subcommands = %w[status health reload tools]
+      lsp_subcommands = %w[start stop restart status analyze format]
+      agent_subcommands = %w[plan execute report history]
       
       comp = proc do |input|
-        if input.start_with?('/')
-          cmd = input[1..-1]
-          commands.select { |c| c.start_with?(cmd) }.map { |c| "/#{c}" }
-        else
+        begin
+          completions = []
+          return [] if input.nil? || input.empty?
+          
+          if input.start_with?('/')
+            # Extract command and args
+            parts = input[1..-1].split(' ', 2)
+            command = parts[0] || ''
+            args = parts[1] || ''
+            
+            if parts.length == 1
+              # Complete slash command itself
+              completions = slash_commands.select { |cmd| cmd.start_with?(command) }.map { |cmd| "/#{cmd}" }
+            else
+              # Complete command arguments
+              case command
+              when 'provider'
+                if args.split(' ').length == 1
+                  completions = providers.select { |p| p.start_with?(args) }.map { |p| "/provider #{p}" }
+                elsif args.split(' ').length == 2
+                  provider_name = args.split(' ')[0]
+                  model_start = args.split(' ')[1]
+                  completions = models.select { |m| m.start_with?(model_start) }.map { |m| "/provider #{provider_name} #{m}" }
+                end
+              when 'model'
+                completions = models.select { |m| m.start_with?(args) }.map { |m| "/model #{m}" }
+              when 'tool'
+                if args.split(' ', 2).length == 1
+                  completions = tools.select { |t| t.start_with?(args) }.map { |t| "/tool #{t}" }
+                else
+                  tool_name = args.split(' ', 2)[0]
+                  file_arg = args.split(' ', 2)[1] || ''
+                  # For file-based tools, complete file paths
+                  if %w[cat write_file edit_file create_file delete_file].include?(tool_name)
+                    begin
+                      completions = Dir.glob("#{file_arg}*").map { |f| "/tool #{tool_name} #{f}" }
+                    rescue
+                      completions = []
+                    end
+                  end
+                end
+              when 'mcp'
+                if args.split(' ').length == 1
+                  completions = mcp_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/mcp #{sub}" }
+                end
+              when 'lsp'
+                if args.split(' ').length == 1
+                  completions = lsp_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/lsp #{sub}" }
+                end
+              when 'agent'
+                if args.split(' ').length == 1
+                  completions = agent_subcommands.select { |sub| sub.start_with?(args) }.map { |sub| "/agent #{sub}" }
+                end
+              end
+            end
+          else
+            # Non-slash command completions (file paths)
+            begin
+              completions = Dir.glob("#{input}*").select { |f| File.file?(f) || File.directory?(f) }
+            rescue
+              completions = []
+            end
+          end
+          
+          completions || []
+        rescue
           []
         end
       end
@@ -1558,6 +1662,244 @@ module Lantae
         sprintf('%dm %ds', minutes, secs)
       else
         sprintf('%ds', secs)
+      end
+    end
+    
+    def handle_review_command(command_id, args)
+      review_id = args.strip
+      
+      if review_id.empty?
+        # Review the last completed command
+        last_completed = @commands.select { |_, cmd| cmd[:status] == :completed }
+                                  .sort_by { |_, cmd| cmd[:completed_at] || Time.at(0) }
+                                  .last
+        
+        if last_completed
+          review_id = last_completed[0].to_s
+        else
+          add_command_output(command_id, "No completed commands to review")
+          return
+        end
+      end
+      
+      # Find the command to review
+      target_cmd = @commands[review_id.to_i]
+      
+      if target_cmd.nil?
+        add_command_output(command_id, "Command [#{review_id}] not found")
+        return
+      end
+      
+      # Build review output
+      output = []
+      output << "\e[1;36m📋 Review of Command [#{review_id}]\e[0m"
+      output << "─" * 50
+      output << "\e[1mQuery:\e[0m #{target_cmd[:input]}"
+      output << "\e[1mStatus:\e[0m #{format_status(target_cmd[:status])}"
+      output << "\e[1mProvider:\e[0m #{target_cmd[:provider]}/#{target_cmd[:model]}"
+      
+      if target_cmd[:started_at] && target_cmd[:completed_at]
+        duration = target_cmd[:completed_at] - target_cmd[:started_at]
+        output << "\e[1mDuration:\e[0m #{format_duration(duration)}"
+      end
+      
+      if target_cmd[:cost_info]
+        output << "\e[1mCost:\e[0m $#{target_cmd[:cost_info][:cost]}"
+      end
+      
+      output << ""
+      output << "\e[1mResponse:\e[0m"
+      output << "─" * 50
+      
+      # Show the response
+      if target_cmd[:output] && target_cmd[:output].any?
+        output += target_cmd[:output]
+      else
+        output << "(No output recorded)"
+      end
+      
+      output << ""
+      output << "\e[90mTip: Use /follow #{review_id} <your follow-up> to ask a follow-up question\e[0m"
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def handle_history_command(command_id, args)
+      limit = args.strip.empty? ? 10 : args.strip.to_i
+      limit = [limit, 50].min  # Cap at 50 for performance
+      
+      # Get recent commands sorted by submission time
+      recent_commands = @commands.sort_by { |_, cmd| cmd[:submitted_at] || Time.at(0) }
+                                 .last(limit)
+                                 .reverse
+      
+      if recent_commands.empty?
+        add_command_output(command_id, "No command history available")
+        return
+      end
+      
+      output = []
+      output << "\e[1;35m📜 Command History (Last #{recent_commands.size})\e[0m"
+      output << "─" * 60
+      
+      recent_commands.each do |id, cmd|
+        # Format timestamp
+        time_str = cmd[:submitted_at].strftime("%H:%M:%S")
+        
+        # Format status
+        status = format_status(cmd[:status])
+        
+        # Truncate input for display
+        input_preview = cmd[:input].to_s.gsub(/\n/, ' ')[0..40]
+        input_preview += "..." if cmd[:input].to_s.length > 40
+        
+        # Build history line
+        line = "[#{id}] #{time_str} #{status} #{input_preview}"
+        
+        # Add duration for completed commands
+        if cmd[:completed_at] && cmd[:started_at]
+          duration = cmd[:completed_at] - cmd[:started_at]
+          line += " (#{format_duration(duration)})"
+        end
+        
+        output << line
+      end
+      
+      output << ""
+      output << "\e[90mUse /review <id> to see full details of any command\e[0m"
+      
+      add_command_output(command_id, output.join("\n"))
+    end
+    
+    def handle_follow_command(command_id, args)
+      parts = args.strip.split(' ', 2)
+      
+      if parts.length < 2
+        add_command_output(command_id, "Usage: /follow <command-id> <your follow-up question>")
+        return
+      end
+      
+      target_id = parts[0].to_i
+      follow_up_text = parts[1]
+      
+      # Find the target command
+      target_cmd = @commands[target_id]
+      
+      if target_cmd.nil?
+        add_command_output(command_id, "Command [#{target_id}] not found")
+        return
+      end
+      
+      if target_cmd[:status] != :completed
+        add_command_output(command_id, "Command [#{target_id}] is not completed yet (status: #{target_cmd[:status]})")
+        return
+      end
+      
+      # Build context for follow-up
+      context_prompt = "Based on our previous exchange:\n\n"
+      context_prompt += "You asked: #{target_cmd[:input]}\n\n"
+      context_prompt += "I responded with the information above.\n\n"
+      context_prompt += "Follow-up question: #{follow_up_text}"
+      
+      # Submit the follow-up with context
+      add_command_output(command_id, "\e[36m🔗 Sending follow-up to command [#{target_id}]\e[0m")
+      
+      # Create a new command for the follow-up
+      submit_command(context_prompt)
+    end
+    
+    def handle_export_command(command_id, args)
+      parts = args.strip.split(' ', 2)
+      
+      if parts.empty?
+        add_command_output(command_id, "Usage: /export <command-id> [filename]")
+        return
+      end
+      
+      target_id = parts[0].to_i
+      filename = parts[1]
+      
+      # Find the target command
+      target_cmd = @commands[target_id]
+      
+      if target_cmd.nil?
+        add_command_output(command_id, "Command [#{target_id}] not found")
+        return
+      end
+      
+      # Generate filename if not provided
+      if filename.nil? || filename.empty?
+        timestamp = Time.now.strftime("%Y%m%d_%H%M%S")
+        filename = "lantae_export_#{target_id}_#{timestamp}.md"
+      end
+      
+      # Ensure .md extension
+      filename += ".md" unless filename.end_with?(".md")
+      
+      # Build export content
+      content = []
+      content << "# Lantae Command Export"
+      content << ""
+      content << "**Command ID:** #{target_id}"
+      content << "**Date:** #{target_cmd[:submitted_at]&.strftime("%Y-%m-%d %H:%M:%S")}"
+      content << "**Provider:** #{target_cmd[:provider]}/#{target_cmd[:model]}"
+      content << "**Status:** #{target_cmd[:status]}"
+      
+      if target_cmd[:completed_at] && target_cmd[:started_at]
+        duration = target_cmd[:completed_at] - target_cmd[:started_at]
+        content << "**Duration:** #{format_duration(duration)}"
+      end
+      
+      if target_cmd[:cost_info]
+        content << "**Cost:** $#{target_cmd[:cost_info][:cost]}"
+        content << "**Tokens:** Input: #{target_cmd[:cost_info][:input_tokens]}, Output: #{target_cmd[:cost_info][:output_tokens]}"
+      end
+      
+      content << ""
+      content << "## Query"
+      content << ""
+      content << "```"
+      content << target_cmd[:input]
+      content << "```"
+      content << ""
+      content << "## Response"
+      content << ""
+      
+      # Add the response without ANSI codes
+      if target_cmd[:output] && target_cmd[:output].any?
+        response_text = target_cmd[:output].join("\n")
+        # Strip ANSI escape codes
+        clean_response = response_text.gsub(/\e\[[0-9;]*m/, '')
+        content << clean_response
+      else
+        content << "(No response recorded)"
+      end
+      
+      content << ""
+      content << "---"
+      content << "*Exported from Lantae on #{Time.now.strftime("%Y-%m-%d %H:%M:%S")}*"
+      
+      # Write to file
+      begin
+        File.write(filename, content.join("\n"))
+        add_command_output(command_id, "✅ Exported command [#{target_id}] to: #{filename}")
+      rescue => e
+        add_command_output(command_id, "❌ Export failed: #{e.message}")
+      end
+    end
+    
+    def format_status(status)
+      case status
+      when :queued
+        "\e[33m⏸ queued\e[0m"
+      when :running
+        "\e[32m▶ running\e[0m"
+      when :completed
+        "\e[34m✓ completed\e[0m"
+      when :failed
+        "\e[31m✗ failed\e[0m"
+      else
+        status.to_s
       end
     end
     

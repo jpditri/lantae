@@ -5,18 +5,64 @@ module Lantae
       
       # Command queue overview (if available)
       if options[:commands]
-        running = options[:commands].values.count { |c| c[:status] == :running }
-        queued  = options[:commands].values.count { |c| c[:status] == :queued }
-        # ASCII mini table for queue status
-        col1, col2 = 11, 8
-        content << "\e[1;34m📋 Command Queue\e[0m"
-        content << "┌#{'─'*col1}┬#{'─'*col2}┐"
-        content << "│ Status#{' '*(col1-6)}│ Count#{' '*(col2-5)}│"
-        content << "├#{'─'*col1}┼#{'─'*col2}┤"
-        content << "│ Running#{' '*(col1-7)}│#{running.to_s.rjust(col2)}│"
-        content << "│ Queued #{' '*(col1-7)}│#{queued.to_s.rjust(col2)}│"
-        content << "└#{'─'*col1}┴#{'─'*col2}┘"
-        content << ""
+        running = options[:commands].select { |_, c| c[:status] == :running }
+        queued  = options[:commands].select { |_, c| c[:status] == :queued }
+        completed = options[:commands].select { |_, c| c[:status] == :completed }
+        
+        # Show detailed pending queries
+        content << "\e[1;34m📋 Query Queue\e[0m"
+        content << "─" * 30
+        
+        # Show running queries first
+        if running.any?
+          content << "\e[1;32m▶ Running (#{running.size}):\e[0m"
+          running.each do |id, cmd|
+            elapsed = Time.now - (cmd[:started_at] || Time.now)
+            query_preview = cmd[:prompt].to_s[0..25].gsub(/\n/, ' ')
+            query_preview += "..." if cmd[:prompt].to_s.length > 25
+            content << "  [#{id}] #{query_preview}"
+            content << "      ⏱ #{format_duration(elapsed)}"
+          end
+          content << ""
+        end
+        
+        # Show queued queries
+        if queued.any?
+          content << "\e[1;33m⏸ Queued (#{queued.size}):\e[0m"
+          queued.first(5).each do |id, cmd|
+            query_preview = cmd[:prompt].to_s[0..25].gsub(/\n/, ' ')
+            query_preview += "..." if cmd[:prompt].to_s.length > 25
+            content << "  [#{id}] #{query_preview}"
+          end
+          if queued.size > 5
+            content << "  ... +#{queued.size - 5} more"
+          end
+          content << ""
+        end
+        
+        # Show recently completed
+        if completed.any? && completed.size < 3
+          recent = completed.sort_by { |_, cmd| cmd[:completed_at] || Time.at(0) }.last(2)
+          content << "\e[1;90m✓ Recent:\e[0m"
+          recent.each do |id, cmd|
+            query_preview = cmd[:prompt].to_s[0..25].gsub(/\n/, ' ')
+            query_preview += "..." if cmd[:prompt].to_s.length > 25
+            content << "  [#{id}] #{query_preview}"
+          end
+          content << ""
+        end
+        
+        # Summary stats
+        total_pending = running.size + queued.size
+        if total_pending > 0
+          content << "\e[1;36m📊 Summary:\e[0m"
+          content << "  Total pending: #{total_pending}"
+          if running.any?
+            avg_time = running.values.map { |cmd| Time.now - (cmd[:started_at] || Time.now) }.sum / running.size
+            content << "  Avg runtime: #{format_duration(avg_time)}"
+          end
+          content << ""
+        end
       end
       
       # Current session info
@@ -151,6 +197,19 @@ module Lantae
       end
       
       content.join("\n")
+    end
+    
+    def self.format_duration(seconds)
+      return "0s" if seconds < 1
+      
+      mins = (seconds / 60).to_i
+      secs = (seconds % 60).to_i
+      
+      if mins > 0
+        "#{mins}m #{secs}s"
+      else
+        "#{secs}s"
+      end
     end
   end
 end

@@ -9,7 +9,9 @@ module Lantae
       def initialize(base_url = 'http://localhost:11434')
         # Use intelligent model selection instead of hardcoded default
         default_model = DefaultModelSelector.get_default_model(base_url)
-        super('ollama', default_model)
+        super(nil) # BaseProvider expects secret_manager, pass nil since Ollama doesn't need it
+        @name = 'ollama'
+        @default_model = default_model
         @base_url = base_url
         @tool_manager = nil
       end

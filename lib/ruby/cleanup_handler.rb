@@ -68,11 +68,11 @@ module Lantae
           
           # Reset terminal to sane state
           system('stty sane 2>/dev/null')
+          
+          # Clear any remaining terminal escape sequences (only for terminals)
+          print "\e[0m" # Reset all formatting
+          print "\e[?25h" # Show cursor
         end
-        
-        # Clear any remaining terminal escape sequences (works for all outputs)
-        print "\e[0m" # Reset all formatting
-        print "\e[?25h" # Show cursor
       rescue => e
         warn "Warning: Could not restore terminal state: #{e.message}" if ENV['DEBUG']
       end
